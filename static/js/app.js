@@ -320,7 +320,7 @@ function renderDetailVisual(element, panel) {
     bars.innerHTML = values.map((value, index) => {
         const height = Math.max(12, Math.round((value / max) * 100));
         const label = `Barra ${index + 1}: ${formatCompactVisualValue(value)}`;
-        return `<i tabindex="0" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Valor individual dentro da composição visual do item selecionado." style="--h:${height}%; --delay:${index * 70}ms"></i>`;
+        return `<i tabindex="0" role="button" class="detail-visual-bar-point" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Barra ${index + 1} da composição visual. Valor: ${escapeHtml(formatCompactVisualValue(value))}. Clique para ver esta parte isolada no painel de informações." data-detail-metrics="Elemento:Barra ${index + 1}|Valor:${escapeHtml(formatCompactVisualValue(value))}|Participação:${Math.round((value / total) * 100)}%|Contexto:${escapeHtml(inferDetailTitle(element))}" style="--h:${height}%; --delay:${index * 70}ms"></i>`;
     }).join('');
 
     const width = 220;
@@ -341,7 +341,7 @@ function renderDetailVisual(element, panel) {
             const left = (point.x / width) * 100;
             const top = (point.y / height) * 100;
             const label = `Ponto ${point.index + 1}: ${formatCompactVisualValue(point.value)}`;
-            return `<button type="button" class="detail-visual-point" style="--x:${left}%; --y:${top}%; --delay:${point.index * 85}ms" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Ponto da linha do gráfico ampliado. Passe por outros pontos para comparar os valores."></button>`;
+            return `<button type="button" class="detail-visual-point" style="--x:${left}%; --y:${top}%; --delay:${point.index * 85}ms" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Ponto ${point.index + 1} da linha animada. Valor: ${escapeHtml(formatCompactVisualValue(point.value))}. Este ponto ajuda a comparar a evolução visual do item selecionado." data-detail-metrics="Elemento:Ponto ${point.index + 1}|Valor:${escapeHtml(formatCompactVisualValue(point.value))}|Percentual:${Math.round((point.value / max) * 100)}%|Contexto:${escapeHtml(inferDetailTitle(element))}"></button>`;
         }).join('');
     }
 
@@ -349,7 +349,8 @@ function renderDetailVisual(element, panel) {
         donut.style.setProperty('--value', `${intensity}%`);
         donut.setAttribute('data-tooltip', `Indicador circular: ${intensity}%`);
         donut.setAttribute('data-detail-title', `Indicador circular ${intensity}%`);
-        donut.setAttribute('data-detail', 'Resumo percentual calculado para o item selecionado.');
+        donut.setAttribute('data-detail', `Indicador circular do item selecionado. Percentual calculado: ${intensity}%. Clique para manter este indicador no painel lateral.`);
+        donut.setAttribute('data-detail-metrics', `Elemento:Indicador circular|Percentual:${intensity}%|Total visual:${formatCompactVisualValue(total)}|Contexto:${inferDetailTitle(element)}`);
         if (donutLabel) donutLabel.textContent = `${intensity}%`;
     }
 }
@@ -472,7 +473,7 @@ document.addEventListener('click', (event) => {
     if (!target) return;
 
     const ignored = event.target.closest('a, button, input, label, select, textarea');
-    const isInteractiveChartPoint = target.matches('.trend-point, .evo-point, .mini-bar-item, .impact-strip-row, .chart-hover, .hover-info');
+    const isInteractiveChartPoint = target.matches('.trend-point, .evo-point, .mini-bar-item, .impact-strip-row, .chart-hover, .hover-info, .detail-visual-point, .detail-visual-bar-point, .detail-visual-donut') || target.closest('.detail-visual-bars');
     if (ignored && !isInteractiveChartPoint) return;
 
     event.preventDefault();
