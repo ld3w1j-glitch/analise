@@ -30,6 +30,7 @@ from analysis import (
     save_production_store,
     summarize_inventory_store,
     summarize_production_store,
+    with_production_month_filter,
 )
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -146,6 +147,12 @@ def load_report_or_redirect(report_id: str):
     if not path.exists():
         return None
     return load_analysis_json(path)
+
+
+def apply_production_filters_from_request(analysis: dict[str, Any]) -> dict[str, Any]:
+    if analysis and analysis.get("report_type") == "production_cost":
+        return with_production_month_filter(analysis, request.args.get("mes"))
+    return analysis
 
 
 def empty_store() -> dict[str, Any]:
@@ -401,6 +408,7 @@ def dashboard_production_cost(report_id: str):
         return redirect(url_for("index"))
     if analysis.get("report_type") != "production_cost":
         return redirect(url_for("dashboard_summary", report_id=report_id))
+    analysis = apply_production_filters_from_request(analysis)
     return render_template("dashboard_production_cost.html", analysis=analysis, active_page="custo_producao")
 
 
@@ -410,6 +418,7 @@ def dashboard_details(report_id: str):
     analysis = load_report_or_redirect(report_id)
     if analysis is None:
         return redirect(url_for("index"))
+    analysis = apply_production_filters_from_request(analysis)
     return render_template("dashboard_details.html", analysis=analysis, active_page="detalhes")
 
 
@@ -430,6 +439,7 @@ def download_csv(report_id: str):
         return redirect(url_for("index"))
 
     analysis = load_analysis_json(path)
+    analysis = apply_production_filters_from_request(analysis)
     if analysis.get("report_type") == "production_cost":
         fieldnames = [
             "data", "empresa", "linha", "custo_producao", "custo_admin",

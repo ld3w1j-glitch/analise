@@ -4,13 +4,34 @@
 {% set page_title = 'Apuração do Custo de Produção' %}
 {% set page_description = 'Leitura separada do Relatório de Equilíbrio, focada no CPP/CustoProdução.' %}
 {% block page_actions %}
+{% set selected_mes = analysis.filters.selected_month|default('all') %}
 <span class="interactive-hint">Passe o mouse ou clique para detalhar</span>
 <a href="{{ url_for('index') }}" class="ghost-btn">Nova análise</a>
-<a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Exportar CSV</a>
-<a href="{{ url_for('dashboard_details', report_id=analysis.report_id) }}" class="primary-inline">Ver detalhes</a>
+<a href="{{ url_for('download_csv', report_id=analysis.report_id, mes=selected_mes) }}" class="ghost-btn">Exportar CSV</a>
+<a href="{{ url_for('dashboard_details', report_id=analysis.report_id, mes=selected_mes) }}" class="primary-inline">Ver detalhes</a>
 {% endblock %}
 {% block dashboard_body %}
 {% set k = analysis.kpis %}
+{% set filters = analysis.filters %}
+{% if filters and filters.month_options %}
+<section class="month-filter-panel glass-card">
+    <div class="month-filter-copy">
+        <span>Filtro por mês</span>
+        <strong>{{ filters.selected_month_label }}</strong>
+        <small>Use para apurar apenas um mês do histórico salvo. A opção Todos mantém o acumulado completo.</small>
+    </div>
+    <div class="month-filter-actions">
+        <a class="month-filter-pill {{ 'active' if filters.selected_month == 'all' else '' }}" href="{{ url_for('dashboard_production_cost', report_id=analysis.report_id) }}">Todos</a>
+        {% for month in filters.month_options %}
+        <a class="month-filter-pill {{ 'active' if filters.selected_month == month.key else '' }}" href="{{ url_for('dashboard_production_cost', report_id=analysis.report_id, mes=month.key) }}" title="{{ month.cost_fmt }} em {{ month.day_count }} dia(s)">
+            <span>{{ month.label }}</span>
+            <small>{{ month.cost_fmt }}</small>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 <section class="reference-kpis production-kpis">
     <article class="kpi-card hero-kpi chart-hover" tabindex="0" data-tooltip="CustoProdução total apurado no arquivo: {{ k.total_cost_production_fmt }}." data-detail-title="CustoProdução total" data-detail="Soma da coluna CustoProdução no Relatório de Equilíbrio. Essa leitura fica separada da análise de divergência para não misturar os conceitos." data-detail-metrics="CustoProdução: {{ k.total_cost_production_fmt }}|Registros com custo: {{ k.active_records }}|Dias com custo: {{ k.active_days }}|Média por dia: {{ k.avg_cost_day_fmt }}">
         <span class="kpi-label">CustoProdução total</span>

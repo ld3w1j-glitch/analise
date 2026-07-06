@@ -1,29 +1,17 @@
-CORREÇÃO: SALVAR RELATÓRIO DE EQUILÍBRIO / CUSTO DE PRODUÇÃO
+Correção: filtro por mês no painel Custo de Produção.
 
-Substitua estes arquivos no seu projeto mantendo as mesmas pastas:
+Substitua estes arquivos mantendo as mesmas pastas do projeto:
 
 - analysis.py
 - app.py
 - static/css/style.css
-- static/js/app.js
-- templates/index.html
-- templates/dashboard_layout.html
-- templates/dashboard_divergences.html
-- templates/dashboard_details.html
 - templates/dashboard_production_cost.html
+- templates/dashboard_details.html
 
-O que mudou:
-
-1. A opção "Por Fornecedor" foi removida da tela de Divergências.
-
-2. O Relatório de Equilíbrio agora também pode ficar salvo em histórico, separado do inventário.
-   - Arquivos de Inventário continuam indo para inventario_acumulado.json.
-   - Arquivos de Custo de Produção / Relatório de Equilíbrio vão para custo_producao_acumulado.json.
-
-3. Na tela de importação, o botão padrão "Somar ao histórico salvo" agora funciona para os dois tipos:
-   - Inventário: acumula por mês.
-   - Custo de Produção: acumula por Data + Empresa + Linha.
-
-4. Se importar novamente o mesmo período do Relatório de Equilíbrio, o sistema substitui Data + Empresa + Linha em vez de duplicar o valor.
+O que foi adicionado:
+- Filtro por mês na tela Apuração do Custo de Produção.
+- Ao selecionar um mês, os KPIs, ranking por linha, composição técnica, evolução diária, maiores registros, detalhes e CSV são recalculados apenas para o mês escolhido.
+- Opção "Todos" para voltar ao histórico acumulado completo.
+- O histórico acumulado de Custo de Produção passa a mostrar meses em vez de vários dias no topo.
 
 Depois de substituir, reinicie o sistema ou faça redeploy no Railway.

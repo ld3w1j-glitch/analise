@@ -3364,3 +3364,75 @@ tr.chart-hover:hover td {
         grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 }
+
+/* Filtro mensal para Custo de Produção */
+.month-filter-panel {
+    display: grid;
+    grid-template-columns: minmax(210px, .7fr) 1.3fr;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    margin: 0 0 14px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 14% 0%, rgba(143,255,202,.12), transparent 28%),
+        linear-gradient(145deg, rgba(24,28,36,.9), rgba(12,15,21,.84));
+}
+.month-filter-copy span,
+.month-filter-copy small {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+}
+.month-filter-copy strong {
+    display: block;
+    margin: 3px 0;
+    font-size: 18px;
+    color: var(--green);
+}
+.month-filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.month-filter-pill {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 72px;
+    min-height: 42px;
+    padding: 6px 10px;
+    border-radius: 14px;
+    color: #d6e6ef;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.08);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 800;
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+.month-filter-pill:hover {
+    transform: translateY(-1px);
+    border-color: rgba(143,255,202,.3);
+    background: rgba(143,255,202,.07);
+}
+.month-filter-pill small {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.month-filter-pill.active {
+    color: #071011;
+    background: linear-gradient(135deg, rgba(130,255,196,.96), rgba(145,234,255,.88));
+    border-color: transparent;
+    box-shadow: 0 0 28px rgba(130,255,196,.14);
+}
+.month-filter-pill.active small { color: rgba(7,16,17,.76); }
+@media (max-width: 760px) {
+    .month-filter-panel { grid-template-columns: 1fr; }
+    .month-filter-actions { justify-content: flex-start; }
+    .month-filter-pill { min-width: 68px; }
+}

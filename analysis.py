@@ -826,6 +826,121 @@ def _sort_full_date_label(value: str) -> tuple[int, int, int, str]:
     return (year, month, day, str(value))
 
 
+MONTH_NAMES_PT = {
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+    7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
+}
+
+
+def production_month_key(date_value: Any) -> str:
+    """Return YYYY-MM for dates in dd/mm/yyyy format used by Relatório de Equilíbrio."""
+    match = re.match(r"^\s*(\d{2})/(\d{2})/(\d{4})\s*$", str(date_value or ""))
+    if not match:
+        return ""
+    _day, month, year = match.groups()
+    return f"{year}-{month}"
+
+
+def production_month_label(month_key: str) -> str:
+    match = re.match(r"^(\d{4})-(\d{2})$", str(month_key or ""))
+    if not match:
+        return str(month_key or "")
+    year, month = match.groups()
+    month_num = int(month)
+    return f"{MONTH_NAMES_PT.get(month_num, month)}/{year[-2:]}"
+
+
+def production_month_short_label(month_key: str) -> str:
+    match = re.match(r"^(\d{4})-(\d{2})$", str(month_key or ""))
+    if not match:
+        return str(month_key or "")
+    year, month = match.groups()
+    return f"{month}/{year[-2:]}"
+
+
+def sort_production_month_key(month_key: str) -> tuple[int, int, str]:
+    match = re.match(r"^(\d{4})-(\d{2})$", str(month_key or ""))
+    if not match:
+        return (9999, 99, str(month_key))
+    year, month = map(int, match.groups())
+    return (year, month, str(month_key))
+
+
+def build_production_month_options(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for rec in records:
+        key = production_month_key(rec.get("data", ""))
+        if not key:
+            continue
+        item = grouped.setdefault(key, {"key": key, "records": 0, "cost": 0.0, "days": set()})
+        item["records"] += 1
+        item["cost"] += parse_number(rec.get("CustoProdução", rec.get("custo_producao", 0)))
+        if rec.get("data"):
+            item["days"].add(str(rec.get("data")))
+
+    options: List[Dict[str, Any]] = []
+    for key in sorted(grouped, key=sort_production_month_key):
+        item = grouped[key]
+        options.append({
+            "key": key,
+            "label": production_month_label(key),
+            "short_label": production_month_short_label(key),
+            "records": item["records"],
+            "day_count": len(item["days"]),
+            "cost": item["cost"],
+            "cost_fmt": brl(item["cost"]),
+        })
+    return options
+
+
+def with_production_month_filter(analysis: Dict[str, Any], selected_month: str | None = None) -> Dict[str, Any]:
+    """Apply a month filter to a production-cost analysis while keeping all month options available."""
+    if analysis.get("report_type") != "production_cost":
+        return analysis
+
+    all_records = list(analysis.get("records", []))
+    month_options = build_production_month_options(all_records)
+    valid_keys = {item["key"] for item in month_options}
+    selected = str(selected_month or "all").strip()
+    if selected in {"", "todos", "all", "None"} or selected not in valid_keys:
+        selected = "all"
+
+    if selected == "all":
+        filtered = analysis
+    else:
+        filtered_records = [rec for rec in all_records if production_month_key(rec.get("data", "")) == selected]
+        meta = dict(analysis.get("meta", {}))
+        meta["active_month_filter"] = selected
+        filtered = build_production_cost_analysis(filtered_records, meta)
+        # Preserve navigation/report information from the saved report.
+        for key in ("report_id", "source_file", "store"):
+            if key in analysis:
+                filtered[key] = analysis[key]
+        filtered["notes"] = list(analysis.get("notes", []))
+
+    if month_options:
+        store_info = dict(analysis.get("store", {}) or {})
+        store_info["month_count"] = len(month_options)
+        store_info["period_count"] = len(month_options)
+        store_info["period_label"] = "mês(es)"
+        store_info["month_range"] = f"{month_options[0]['label']} até {month_options[-1]['label']}"
+        store_info["months"] = [item["short_label"] for item in month_options]
+        store_info["periods"] = [item["short_label"] for item in month_options]
+        filtered["store"] = store_info
+
+    selected_option = next((item for item in month_options if item["key"] == selected), None)
+    filtered["filters"] = {
+        "selected_month": selected,
+        "selected_month_label": selected_option["label"] if selected_option else "Todos os meses",
+        "is_filtered": selected != "all",
+        "month_options": month_options,
+        "month_count": len(month_options),
+        "total_records_unfiltered": len(all_records),
+        "filtered_records": len(filtered.get("records", [])),
+    }
+    return filtered
+
+
 def prepare_production_cost_records(file_path: str | Path) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
     sheets = read_excel_file(file_path)
     found = _find_equilibrium_sheet(sheets)
@@ -1089,6 +1204,15 @@ def build_production_cost_analysis(records_raw: List[Dict[str, Any]], meta: Dict
         },
         "production": production,
         "records": records,
+        "filters": {
+            "selected_month": "all",
+            "selected_month_label": "Todos os meses",
+            "is_filtered": False,
+            "month_options": build_production_month_options(records_raw),
+            "month_count": len(build_production_month_options(records_raw)),
+            "total_records_unfiltered": len(records),
+            "filtered_records": len(records),
+        },
         "notes": [
             "Este arquivo foi tratado como Relatório de Equilíbrio, separado da análise de inventário rotativo.",
             "CustoProdução é apurado como movimento de produção por dia e por linha, não como divergência positiva/negativa.",
@@ -1205,12 +1329,13 @@ def analyze_production_cost_store(store: Dict[str, Any]) -> Dict[str, Any]:
         "import_count": summary["import_count"],
         "source_files": store.get("source_files", []),
         "unique_filenames": summary["unique_filenames"],
-        "month_count": summary["day_count"],
-        "period_count": summary["day_count"],
-        "period_label": "dia(s)",
-        "month_range": summary["date_range"],
-        "months": summary["dates_short"],
-        "periods": summary["dates_short"],
+        "month_count": summary["month_count"],
+        "period_count": summary["month_count"],
+        "period_label": "mês(es)",
+        "date_range": summary["date_range"],
+        "month_range": summary["month_range"],
+        "months": summary["months"],
+        "periods": summary["months"],
     }
     analysis["notes"].insert(0, "Histórico acumulado de Custo de Produção: arquivos do Relatório de Equilíbrio ficam salvos por dia, empresa e linha.")
     return analysis
@@ -1219,6 +1344,7 @@ def analyze_production_cost_store(store: Dict[str, Any]) -> Dict[str, Any]:
 def summarize_production_store(store: Dict[str, Any]) -> Dict[str, Any]:
     records = production_store_records(store)
     dates = sorted({str(rec.get("data", "")) for rec in records if str(rec.get("data", "")).strip()}, key=_sort_full_date_label)
+    month_options = build_production_month_options(records)
     source_files = store.get("source_files", [])
     unique = []
     seen = set()
@@ -1235,9 +1361,13 @@ def summarize_production_store(store: Dict[str, Any]) -> Dict[str, Any]:
         "import_count": len(source_files),
         "unique_filenames": unique,
         "day_count": len(dates),
+        "month_count": len(month_options),
         "dates": dates,
         "dates_short": [date[:5] for date in dates],
+        "months": [item["short_label"] for item in month_options],
+        "month_options": month_options,
         "date_range": f"{dates[0]} até {dates[-1]}" if dates else "Nenhuma data salva",
+        "month_range": f"{month_options[0]['label']} até {month_options[-1]['label']}" if month_options else "Nenhum mês salvo",
         "total_cost": total_cost,
         "total_cost_fmt": brl(total_cost),
         "latest_files": list(reversed(source_files[-5:])),

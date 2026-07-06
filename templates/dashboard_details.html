@@ -4,8 +4,9 @@
 {% set page_title = 'Detalhes & Exportação' %}
 {% set page_description = 'Tabela tratada, indicadores técnicos e arquivos prontos para exportar.' %}
 {% block page_actions %}
+{% set selected_mes = analysis.filters.selected_month|default('all') if analysis.report_type|default('inventory') == 'production_cost' else 'all' %}
 <span class="interactive-hint">Passe o mouse nos registros</span>
-<a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Exportar CSV</a>
+<a href="{{ url_for('download_csv', report_id=analysis.report_id, mes=selected_mes) }}" class="ghost-btn">Exportar CSV</a>
 <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn">Exportar JSON</a>
 {% endblock %}
 {% block dashboard_body %}
@@ -15,7 +16,7 @@
         <div class="panel-head">
             <div>
                 <h2>Tabela de apuração do CustoProdução</h2>
-                <p>Primeiros registros tratados do Relatório de Equilíbrio.</p>
+                <p>Primeiros registros tratados do Relatório de Equilíbrio{% if analysis.filters and analysis.filters.is_filtered %} — filtro {{ analysis.filters.selected_month_label }}{% endif %}.</p>
             </div>
         </div>
         <div class="table-wrap">
@@ -64,6 +65,7 @@
         <div class="note-list">
             <div class="note-item">Arquivo analisado: {{ analysis.source_file }}</div>
             <div class="note-item">Tipo detectado: Relatório de Equilíbrio</div>
+            {% if analysis.filters and analysis.filters.is_filtered %}<div class="note-item">Filtro aplicado: {{ analysis.filters.selected_month_label }} — {{ analysis.filters.filtered_records }} registro(s)</div>{% endif %}
             <div class="note-item">Registros tratados: {{ analysis.kpis.total_rows }}</div>
             <div class="note-item">Registros com CustoProdução: {{ analysis.kpis.active_records }}</div>
             <div class="note-item">CustoProdução total: {{ analysis.kpis.total_cost_production_fmt }}</div>
@@ -80,9 +82,9 @@
             </div>
         </div>
         <div class="action-stack">
-            <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="primary-btn slim">Baixar CSV tratado</a>
+            <a href="{{ url_for('download_csv', report_id=analysis.report_id, mes=selected_mes) }}" class="primary-btn slim">Baixar CSV tratado</a>
             <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn block">Baixar JSON analítico</a>
-            <a href="{{ url_for('dashboard_production_cost', report_id=analysis.report_id) }}" class="ghost-btn block">Voltar ao Custo de Produção</a>
+            <a href="{{ url_for('dashboard_production_cost', report_id=analysis.report_id, mes=selected_mes) }}" class="ghost-btn block">Voltar ao Custo de Produção</a>
         </div>
     </article>
 </section>
@@ -150,7 +152,7 @@
             </div>
         </div>
         <div class="action-stack">
-            <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="primary-btn slim">Baixar CSV tratado</a>
+            <a href="{{ url_for('download_csv', report_id=analysis.report_id, mes=selected_mes) }}" class="primary-btn slim">Baixar CSV tratado</a>
             <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn block">Baixar JSON analítico</a>
             <a href="{{ url_for('dashboard_summary', report_id=analysis.report_id) }}" class="ghost-btn block">Voltar ao Resumo Geral</a>
         </div>
