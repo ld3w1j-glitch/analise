@@ -3221,3 +3221,70 @@ tr.chart-hover:hover td {
         right: clamp(28px, 6vw, 120px);
     }
 }
+
+/* Pontos interativos no gráfico ampliado central */
+.detail-line-wrap {
+    position: relative;
+    width: 100%;
+    align-self: center;
+}
+.detail-visual-points {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+.detail-visual-point {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    transform: translate(-50%, -50%) scale(.72);
+    opacity: 0;
+    cursor: pointer;
+    pointer-events: auto;
+    background: var(--green);
+    box-shadow:
+        0 0 0 5px rgba(143,255,202,.12),
+        0 0 22px rgba(143,255,202,.52);
+    animation: detailPointPop .42s cubic-bezier(.2,.9,.2,1) forwards;
+    animation-delay: calc(.42s + var(--delay, 0ms));
+}
+.detail-visual.is-negative .detail-visual-point {
+    background: var(--red);
+    box-shadow:
+        0 0 0 5px rgba(255,120,148,.12),
+        0 0 22px rgba(255,120,148,.48);
+}
+.detail-visual-point:hover,
+.detail-visual-point:focus-visible,
+.detail-visual-bars i:hover,
+.detail-visual-bars i:focus-visible,
+.detail-visual-donut:hover,
+.detail-visual-donut:focus-visible {
+    outline: none;
+    filter: brightness(1.16);
+    transform: translate(-50%, -50%) scale(1.18);
+}
+.detail-visual-bars i {
+    cursor: pointer;
+}
+.detail-visual-bars i:hover,
+.detail-visual-bars i:focus-visible {
+    transform: translateY(-4px);
+}
+.detail-visual-donut {
+    cursor: pointer;
+}
+.detail-visual-donut:hover,
+.detail-visual-donut:focus-visible {
+    transform: scale(1.06);
+}
+
+@keyframes detailPointPop {
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}

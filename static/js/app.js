@@ -158,11 +158,14 @@ function ensureDetailPanel() {
             </div>
             <div class="detail-visual-stage">
                 <div class="detail-visual-bars"></div>
-                <svg class="detail-visual-line" viewBox="0 0 220 82" preserveAspectRatio="none">
-                    <path class="detail-visual-area" d=""></path>
-                    <polyline class="detail-visual-path" points=""></polyline>
-                </svg>
-                <div class="detail-visual-donut"><span>0%</span></div>
+                <div class="detail-line-wrap">
+                    <svg class="detail-visual-line" viewBox="0 0 220 82" preserveAspectRatio="none">
+                        <path class="detail-visual-area" d=""></path>
+                        <polyline class="detail-visual-path" points=""></polyline>
+                    </svg>
+                    <div class="detail-visual-points"></div>
+                </div>
+                <div class="detail-visual-donut" data-tooltip="Indicador: 0%"><span>0%</span></div>
             </div>
             <div class="detail-visual-caption">Esta área mostra o gráfico animado do item que você clicou.</div>
         </div>
@@ -304,6 +307,7 @@ function renderDetailVisual(element, panel) {
     const totalNode = visual.querySelector('.detail-visual-total');
     const pathNode = visual.querySelector('.detail-visual-path');
     const areaNode = visual.querySelector('.detail-visual-area');
+    const pointsNode = visual.querySelector('.detail-visual-points');
     const donut = visual.querySelector('.detail-visual-donut');
     const donutLabel = donut?.querySelector('span');
 
@@ -315,23 +319,37 @@ function renderDetailVisual(element, panel) {
     totalNode.textContent = formatCompactVisualValue(total);
     bars.innerHTML = values.map((value, index) => {
         const height = Math.max(12, Math.round((value / max) * 100));
-        return `<i style="--h:${height}%; --delay:${index * 70}ms" title="${escapeHtml(formatCompactVisualValue(value))}"></i>`;
+        const label = `Barra ${index + 1}: ${formatCompactVisualValue(value)}`;
+        return `<i tabindex="0" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Valor individual dentro da composição visual do item selecionado." style="--h:${height}%; --delay:${index * 70}ms"></i>`;
     }).join('');
 
     const width = 220;
     const height = 82;
     const pad = 8;
-    const points = values.map((value, index) => {
+    const coordinates = values.map((value, index) => {
         const x = pad + index * ((width - pad * 2) / Math.max(values.length - 1, 1));
         const y = height - pad - (value / max) * (height - pad * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
+        return { x, y, value, index };
+    });
+    const points = coordinates.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
     const area = `M${points.split(' ')[0]} L${points.split(' ').slice(1).join(' L')} L${width - pad},${height - pad} L${pad},${height - pad} Z`;
     pathNode.setAttribute('points', points);
     areaNode.setAttribute('d', area);
 
+    if (pointsNode) {
+        pointsNode.innerHTML = coordinates.map((point) => {
+            const left = (point.x / width) * 100;
+            const top = (point.y / height) * 100;
+            const label = `Ponto ${point.index + 1}: ${formatCompactVisualValue(point.value)}`;
+            return `<button type="button" class="detail-visual-point" style="--x:${left}%; --y:${top}%; --delay:${point.index * 85}ms" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Ponto da linha do gráfico ampliado. Passe por outros pontos para comparar os valores."></button>`;
+        }).join('');
+    }
+
     if (donut) {
         donut.style.setProperty('--value', `${intensity}%`);
+        donut.setAttribute('data-tooltip', `Indicador circular: ${intensity}%`);
+        donut.setAttribute('data-detail-title', `Indicador circular ${intensity}%`);
+        donut.setAttribute('data-detail', 'Resumo percentual calculado para o item selecionado.');
         if (donutLabel) donutLabel.textContent = `${intensity}%`;
     }
 }
