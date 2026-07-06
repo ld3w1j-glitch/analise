@@ -1,12 +1,30 @@
-Arquivos para substituir no projeto:
+ARQUIVOS PARA SUBSTITUIR
 
-1. analysis.py
-2. static/js/app.js
-3. static/css/style.css
-4. templates/dashboard_divergences.html
+Substitua estes arquivos no seu projeto, mantendo as mesmas pastas:
 
-O que foi corrigido:
-- Os botões "Visão Geral", "Por Categoria" e "Por Fornecedor" agora são abas interativas.
-- "Por Categoria" mostra um ranking agrupado pela linha/descrição da planilha.
-- "Por Fornecedor" mostra ranking quando a planilha tiver uma coluna chamada "Fornecedor" ou "Fornec".
-- Se a planilha não tiver fornecedor, a aba mostra um aviso explicando isso.
+1) analysis.py
+2) app.py
+3) static/css/style.css
+4) templates/dashboard_layout.html
+5) templates/dashboard_divergences.html
+6) templates/dashboard_details.html
+
+Arquivo novo que deve ser adicionado:
+
+7) templates/dashboard_production_cost.html
+
+O QUE FOI AJUSTADO
+
+- Removida a aba "Por Fornecedor" da tela de Divergências.
+- Mantida apenas a navegação "Visão Geral" e "Por Categoria".
+- Adicionado tratamento automático para arquivo no formato "Relatório de Equilíbrio".
+- Quando o Excel tiver a coluna "CustoProdução", o sistema abre uma tela separada de "Custo de Produção".
+- O CustoProdução não é tratado como divergência positiva/negativa; ele vira uma apuração separada por dia e por linha.
+- Exportação CSV ajustada para o novo tipo de relatório.
+
+COMO TESTAR
+
+1) Substitua/adicione os arquivos acima.
+2) Reinicie o sistema no Railway ou localmente.
+3) Faça upload do arquivo Relatorio_Equilibrio.
+4) O sistema deve abrir a tela "Custo de Produção" automaticamente.

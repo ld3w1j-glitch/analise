@@ -17,6 +17,8 @@ from analysis import (
     add_file_to_inventory_store,
     analyze_inventory,
     analyze_inventory_store,
+    analyze_production_cost,
+    detect_production_cost_report,
     load_analysis_json,
     load_inventory_store,
     save_analysis_json,
@@ -46,6 +48,7 @@ app.secret_key = os.environ.get("INVENTARIO_SECRET_KEY", "inventario-dashboard-l
 PAGES = {
     "resumo": {"label": "Resumo Geral", "endpoint": "dashboard_summary"},
     "divergencias": {"label": "Divergências", "endpoint": "dashboard_divergences"},
+    "custo_producao": {"label": "Custo de Produção", "endpoint": "dashboard_production_cost"},
     "detalhes": {"label": "Detalhes & Exportação", "endpoint": "dashboard_details"},
 }
 
@@ -255,8 +258,17 @@ def upload_file():
     uploaded.save(saved_path)
 
     mode = request.form.get("mode", "accumulate")
+    target_endpoint = "dashboard_summary"
     try:
-        if mode == "single":
+        # Relatório de Equilíbrio: trata como apuração de Custo de Produção,
+        # separado do histórico de inventário para não misturar estruturas.
+        if detect_production_cost_report(saved_path):
+            analysis = analyze_production_cost(saved_path)
+            analysis["source_file"] = original_name
+            analysis["report_id"] = report_id
+            save_analysis_json(analysis, report_path(report_id))
+            target_endpoint = "dashboard_production_cost"
+        elif mode == "single":
             analysis = analyze_inventory(saved_path)
             analysis["source_file"] = original_name
             analysis["report_id"] = report_id
@@ -276,8 +288,7 @@ def upload_file():
         store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
         return render_template("index.html", error=str(exc), store_summary=store_summary), 400
 
-    return redirect(url_for("dashboard_summary", report_id=report_id))
-
+    return redirect(url_for(target_endpoint, report_id=report_id))
 
 @app.post("/reset-store")
 @login_required
@@ -298,6 +309,9 @@ def dashboard_accumulated():
 @app.get("/dashboard/<report_id>")
 @login_required
 def dashboard_root(report_id: str):
+    analysis = load_report_or_redirect(report_id)
+    if analysis and analysis.get("report_type") == "production_cost":
+        return redirect(url_for("dashboard_production_cost", report_id=report_id))
     return redirect(url_for("dashboard_summary", report_id=report_id))
 
 
@@ -307,6 +321,8 @@ def dashboard_summary(report_id: str):
     analysis = load_report_or_redirect(report_id)
     if analysis is None:
         return redirect(url_for("index"))
+    if analysis.get("report_type") == "production_cost":
+        return redirect(url_for("dashboard_production_cost", report_id=report_id))
     return render_template("dashboard_summary.html", analysis=analysis, active_page="resumo")
 
 
@@ -316,7 +332,20 @@ def dashboard_divergences(report_id: str):
     analysis = load_report_or_redirect(report_id)
     if analysis is None:
         return redirect(url_for("index"))
+    if analysis.get("report_type") == "production_cost":
+        return redirect(url_for("dashboard_production_cost", report_id=report_id))
     return render_template("dashboard_divergences.html", analysis=analysis, active_page="divergencias")
+
+
+@app.get("/dashboard/<report_id>/custo-producao")
+@login_required
+def dashboard_production_cost(report_id: str):
+    analysis = load_report_or_redirect(report_id)
+    if analysis is None:
+        return redirect(url_for("index"))
+    if analysis.get("report_type") != "production_cost":
+        return redirect(url_for("dashboard_summary", report_id=report_id))
+    return render_template("dashboard_production_cost.html", analysis=analysis, active_page="custo_producao")
 
 
 @app.get("/dashboard/<report_id>/detalhes")
@@ -345,15 +374,26 @@ def download_csv(report_id: str):
         return redirect(url_for("index"))
 
     analysis = load_analysis_json(path)
-    month_cols = analysis.get("meta", {}).get("month_cols", [])
-    fieldnames = ["loja", "linha", "descricao"] + list(month_cols) + ["diferenca", "status", "risk"]
-    output = [";".join(fieldnames)]
-    for row in analysis.get("records", []):
-        values = []
-        for field in fieldnames:
-            value = row.get("month_values", {}).get(field, row.get(field, ""))
-            values.append(str(value).replace(";", ","))
-        output.append(";".join(values))
+    if analysis.get("report_type") == "production_cost":
+        fieldnames = [
+            "data", "empresa", "linha", "custo_producao", "custo_admin",
+            "total_entrada", "total_saida", "total_cmv", "diferenca",
+            "total_variacao", "quebra_producao", "quebra_saida", "risk"
+        ]
+        output = [";".join(fieldnames)]
+        for row in analysis.get("records", []):
+            values = [str(row.get(field, "")).replace(";", ",") for field in fieldnames]
+            output.append(";".join(values))
+    else:
+        month_cols = analysis.get("meta", {}).get("month_cols", [])
+        fieldnames = ["loja", "linha", "descricao"] + list(month_cols) + ["diferenca", "status", "risk"]
+        output = [";".join(fieldnames)]
+        for row in analysis.get("records", []):
+            values = []
+            for field in fieldnames:
+                value = row.get("month_values", {}).get(field, row.get(field, ""))
+                values.append(str(value).replace(";", ","))
+            output.append(";".join(values))
 
     content = "\n".join(output)
     return Response(

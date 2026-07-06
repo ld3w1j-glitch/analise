@@ -1,14 +1,92 @@
 {% extends "dashboard_layout.html" %}
-{% set page_index = '4' %}
+{% set page_index = '4' if analysis.report_type|default('inventory') != 'production_cost' else '3' %}
 {% set page_label = 'Detalhes & Exportação' %}
 {% set page_title = 'Detalhes & Exportação' %}
-{% set page_description = 'Tabela tratada, classificação de risco e arquivos prontos para exportar.' %}
+{% set page_description = 'Tabela tratada, indicadores técnicos e arquivos prontos para exportar.' %}
 {% block page_actions %}
-<span class="interactive-hint">Passe o mouse nos gráficos</span>
+<span class="interactive-hint">Passe o mouse nos registros</span>
 <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Exportar CSV</a>
 <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn">Exportar JSON</a>
 {% endblock %}
 {% block dashboard_body %}
+{% if analysis.report_type|default('inventory') == 'production_cost' %}
+<section class="content-grid details-grid">
+    <article class="panel large-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Tabela de apuração do CustoProdução</h2>
+                <p>Primeiros registros tratados do Relatório de Equilíbrio.</p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Empresa</th>
+                        <th>Linha</th>
+                        <th>CustoProdução</th>
+                        <th>CustoAdmin.</th>
+                        <th>Total Entrada</th>
+                        <th>Total Saída</th>
+                        <th>Total CMV</th>
+                        <th>Diferença</th>
+                        <th>TotalVariação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in analysis.records[:80] %}
+                    <tr class="chart-hover" data-tooltip="{{ item.data }} • {{ item.linha }} • CustoProdução {{ item.custo_producao_fmt }}">
+                        <td>{{ item.data }}</td>
+                        <td>{{ item.empresa }}</td>
+                        <td>{{ item.linha }}</td>
+                        <td class="positivo">{{ item.custo_producao_fmt }}</td>
+                        <td class="{{ 'positivo' if item.custo_admin >= 0 else 'negativo' }}">{{ item.custo_admin_fmt }}</td>
+                        <td class="{{ 'positivo' if item.total_entrada >= 0 else 'negativo' }}">{{ item.total_entrada_fmt }}</td>
+                        <td class="{{ 'positivo' if item.total_saida >= 0 else 'negativo' }}">{{ item.total_saida_fmt }}</td>
+                        <td class="{{ 'positivo' if item.total_cmv >= 0 else 'negativo' }}">{{ item.total_cmv_fmt }}</td>
+                        <td class="{{ 'positivo' if item.diferenca >= 0 else 'negativo' }}">{{ item.diferenca_fmt }}</td>
+                        <td class="{{ 'positivo' if item.total_variacao >= 0 else 'negativo' }}">{{ item.total_variacao_fmt }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Resumo técnico</h2>
+                <p>Informações de apoio para interpretação do apuramento.</p>
+            </div>
+        </div>
+        <div class="note-list">
+            <div class="note-item">Arquivo analisado: {{ analysis.source_file }}</div>
+            <div class="note-item">Tipo detectado: Relatório de Equilíbrio</div>
+            <div class="note-item">Registros tratados: {{ analysis.kpis.total_rows }}</div>
+            <div class="note-item">Registros com CustoProdução: {{ analysis.kpis.active_records }}</div>
+            <div class="note-item">CustoProdução total: {{ analysis.kpis.total_cost_production_fmt }}</div>
+            <div class="note-item">CPP/CMV: {{ analysis.kpis.cost_vs_cmv_pct_fmt }}</div>
+            <div class="note-item">CPP/Saída: {{ analysis.kpis.cost_vs_output_pct_fmt }}</div>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Exportação</h2>
+                <p>Baixe os dados para compartilhar ou continuar a análise.</p>
+            </div>
+        </div>
+        <div class="action-stack">
+            <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="primary-btn slim">Baixar CSV tratado</a>
+            <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn block">Baixar JSON analítico</a>
+            <a href="{{ url_for('dashboard_production_cost', report_id=analysis.report_id) }}" class="ghost-btn block">Voltar ao Custo de Produção</a>
+        </div>
+    </article>
+</section>
+{% else %}
 <section class="content-grid details-grid">
     <article class="panel large-panel">
         <div class="panel-head">
@@ -78,4 +156,5 @@
         </div>
     </article>
 </section>
+{% endif %}
 {% endblock %}

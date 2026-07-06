@@ -15,7 +15,6 @@
     <div class="divergence-tabs" role="tablist" aria-label="Filtros de divergências">
         <button class="active" type="button" data-divergence-tab="overview" role="tab" aria-selected="true">Visão Geral</button>
         <button type="button" data-divergence-tab="category" role="tab" aria-selected="false">Por Categoria</button>
-        <button type="button" data-divergence-tab="supplier" role="tab" aria-selected="false">Por Fornecedor</button>
     </div>
 
     <div class="divergence-tab-panel is-active" data-divergence-panel="overview">
@@ -163,33 +162,5 @@
         </article>
     </div>
 
-    <div class="divergence-tab-panel" data-divergence-panel="supplier" hidden>
-        <article class="panel impact-strip-panel">
-            <div class="panel-head compact-head">
-                <div>
-                    <h2>Divergências por fornecedor</h2>
-                    <p>Agrupamento por fornecedor quando a planilha possui coluna de fornecedor.</p>
-                </div>
-            </div>
-            {% if analysis.supplier_groups %}
-            <div class="impact-strip-list">
-                {% for item in analysis.supplier_groups[:10] %}
-                <div class="impact-strip-row chart-hover" tabindex="0" data-tooltip="{{ item.label }} • Saldo: {{ item.net_total_fmt }} • Volume: {{ item.abs_total_fmt }}" data-detail-title="Fornecedor — {{ item.label }}" data-detail="Resumo agrupado por fornecedor. Use esta visão para identificar fornecedores com maior concentração de divergências." data-detail-metrics="Fornecedor: {{ item.label }}|Itens: {{ item.item_count }}|Positivo: {{ item.positive_total_fmt }}|Negativo: {{ item.negative_total_fmt }}|Saldo líquido: {{ item.net_total_fmt }}|Volume total: {{ item.abs_total_fmt }}">
-                    <div>
-                        <strong>{{ item.label }}</strong>
-                        <small>{{ item.item_count }} item{{ 's' if item.item_count != 1 else '' }}</small>
-                    </div>
-                    <div class="impact-track"><i class="{{ item.status }}" style="width: {{ item.bar_width }}%"></i></div>
-                    <span class="{{ item.status }}">{{ item.net_total_fmt }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-state compact-empty">
-                Esta planilha não possui coluna de fornecedor. Para usar esta aba, envie um arquivo com uma coluna chamada “Fornecedor” ou “Fornec”.
-            </div>
-            {% endif %}
-        </article>
-    </div>
 </section>
 {% endblock %}

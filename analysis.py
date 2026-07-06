@@ -760,6 +760,343 @@ def summarize_inventory_store(store: Dict[str, Any]) -> Dict[str, Any]:
         "latest_files": list(reversed(source_files[-5:])),
     }
 
+
+# -----------------------------------------------------------------------------
+# Relatório de Equilíbrio / Apuração de Custo de Produção
+# -----------------------------------------------------------------------------
+
+DATE_FULL_RE = re.compile(r"^\s*\d{2}/\d{2}/\d{4}\s*$")
+
+
+def _is_equilibrium_header(row: pd.Series) -> bool:
+    cells = [normalize_text(v) for v in row.tolist()]
+    joined = " | ".join(cells)
+    return "CUSTOPRODUCAO" in joined and "DIFERENCA" in joined and "TOTAL CMV" in joined
+
+
+def _find_equilibrium_sheet(sheets: Dict[str, pd.DataFrame]) -> tuple[str, pd.DataFrame, int] | None:
+    """Return the sheet/header row for the Relatório de Equilíbrio layout."""
+    for sheet_name, raw in sheets.items():
+        if raw is None or raw.empty:
+            continue
+        title = normalize_text(raw.iloc[0, 0]) if raw.shape[0] and raw.shape[1] else ""
+        max_rows = min(len(raw), 20)
+        for idx in range(max_rows):
+            if _is_equilibrium_header(raw.iloc[idx]):
+                return sheet_name, raw, idx
+    return None
+
+
+def detect_production_cost_report(file_path: str | Path) -> bool:
+    """Detects files in the Relatório de Equilíbrio format.
+
+    This format is not an inventory divergence table. It is hierarchical by
+    Data -> Empresa -> Linha and contains the CustoProdução column.
+    """
+    try:
+        sheets = read_excel_file(file_path)
+        return _find_equilibrium_sheet(sheets) is not None
+    except Exception:
+        return False
+
+
+def _unique_headers(headers: List[Any]) -> List[str]:
+    clean: List[str] = []
+    seen: Dict[str, int] = {}
+    for idx, raw in enumerate(headers):
+        label = str(raw).strip() if raw is not None and str(raw).lower() != "nan" else ""
+        if idx == 0:
+            label = label or "Dia/Empresa/Linha"
+        if not label:
+            label = f"COL_{idx+1}"
+        if label in seen:
+            seen[label] += 1
+            label = f"{label}_{seen[label]}"
+        else:
+            seen[label] = 1
+        clean.append(label)
+    return clean
+
+
+def _sort_full_date_label(value: str) -> tuple[int, int, int, str]:
+    match = re.match(r"^\s*(\d{2})/(\d{2})/(\d{4})\s*$", str(value))
+    if not match:
+        return (9999, 99, 99, str(value))
+    day, month, year = map(int, match.groups())
+    return (year, month, day, str(value))
+
+
+def prepare_production_cost_records(file_path: str | Path) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    sheets = read_excel_file(file_path)
+    found = _find_equilibrium_sheet(sheets)
+    if not found:
+        raise RuntimeError("Não encontrei o layout do Relatório de Equilíbrio com a coluna CustoProdução.")
+
+    sheet_name, raw, header_idx = found
+    raw = raw.dropna(how="all").dropna(axis=1, how="all").reset_index(drop=True)
+    headers = _unique_headers(raw.iloc[header_idx].tolist())
+    if headers and normalize_text(headers[0]).startswith("COL_"):
+        headers[0] = "Dia/Empresa/Linha"
+
+    # Some exports put the first-column label one line above the numeric headers.
+    if raw.shape[0] > 1:
+        first_col_title = str(raw.iloc[max(header_idx - 1, 0), 0] or "").strip()
+        if first_col_title and normalize_text(headers[0]).startswith("COL_"):
+            headers[0] = first_col_title
+        elif first_col_title and normalize_text(first_col_title) == "DIA/EMPRESA/LINHA":
+            headers[0] = first_col_title
+
+    records: List[Dict[str, Any]] = []
+    current_date = ""
+    current_company = ""
+    data_rows = raw.iloc[header_idx + 1 :].copy()
+    data_rows.columns = headers
+
+    key_col = headers[0]
+    metric_cols = [col for col in headers[1:] if not str(col).startswith("COL_")]
+    for _, row in data_rows.iterrows():
+        label_raw = row.get(key_col, "")
+        label = str(label_raw).strip() if label_raw is not None and str(label_raw).lower() != "nan" else ""
+        if not label:
+            continue
+        label_norm = normalize_text(label)
+
+        if DATE_FULL_RE.match(label):
+            current_date = label
+            current_company = ""
+            continue
+        if label_norm.startswith("TOTAL"):
+            continue
+
+        numeric_total = sum(abs(parse_number(row.get(col, 0))) for col in metric_cols)
+        looks_like_company = (
+            "LTDA" in label_norm
+            or "EMPRESA" in label_norm
+            or "(CD)" in label_norm
+            or label_norm.startswith("MR")
+        ) and numeric_total == 0
+        if looks_like_company:
+            current_company = label
+            continue
+
+        rec: Dict[str, Any] = {
+            "data": current_date,
+            "empresa": current_company,
+            "linha": label,
+        }
+        for col in metric_cols:
+            rec[col] = parse_number(row.get(col, 0))
+        records.append(rec)
+
+    if not records:
+        raise RuntimeError("Encontrei a coluna CustoProdução, mas não consegui montar os registros por linha.")
+
+    meta = {
+        "sheet_name": sheet_name,
+        "header_row": header_idx + 1,
+        "date_col": key_col,
+        "metric_cols": metric_cols,
+        "linha_col": "linha",
+        "report_title": "Relatório de Equilíbrio",
+    }
+    return records, meta
+
+
+def _sum_record_metric(records: List[Dict[str, Any]], metric: str) -> float:
+    return sum(parse_number(rec.get(metric, 0)) for rec in records)
+
+
+def _format_production_record(rec: Dict[str, Any], max_cost: float) -> Dict[str, Any]:
+    cost = parse_number(rec.get("CustoProdução", 0))
+    diff = parse_number(rec.get("Diferença", 0))
+    cmv = parse_number(rec.get("Total CMV", 0))
+    output = parse_number(rec.get("Total Saída", 0))
+    input_total = parse_number(rec.get("Total Entrada", 0))
+    total_variation = parse_number(rec.get("TotalVariação", 0))
+    status = "positivo" if cost > 0 else "zerado"
+    return {
+        **rec,
+        "loja": rec.get("empresa", ""),
+        "descricao": rec.get("linha", ""),
+        "custo_producao": cost,
+        "custo_producao_fmt": brl(cost),
+        "custo_admin": parse_number(rec.get("CustoAdmin.", 0)),
+        "custo_admin_fmt": brl(parse_number(rec.get("CustoAdmin.", 0))),
+        "total_cmv": cmv,
+        "total_cmv_fmt": brl(cmv, signed=True),
+        "total_saida": output,
+        "total_saida_fmt": brl(output, signed=True),
+        "total_entrada": input_total,
+        "total_entrada_fmt": brl(input_total, signed=True),
+        "diferenca": diff,
+        "diferenca_fmt": brl(diff, signed=True),
+        "total_variacao": total_variation,
+        "total_variacao_fmt": brl(total_variation, signed=True),
+        "quebra_producao": parse_number(rec.get("QuebraProdução", 0)),
+        "quebra_producao_fmt": brl(parse_number(rec.get("QuebraProdução", 0)), signed=True),
+        "quebra_saida": parse_number(rec.get("QuebraSaída", 0)),
+        "quebra_saida_fmt": brl(parse_number(rec.get("QuebraSaída", 0)), signed=True),
+        "status": status,
+        "risk": "Com custo" if cost > 0 else "Sem custo",
+        "bar_width": round(safe_div(abs(cost), max_cost) * 100, 1) if max_cost else 0,
+        "month_values": {},
+        "month_values_fmt": {},
+    }
+
+
+def _group_production_by(records: List[Dict[str, Any]], key: str, total_cost: float, limit: int = 12) -> List[Dict[str, Any]]:
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for rec in records:
+        label = str(rec.get(key, "") or "Não informado")
+        item = grouped.setdefault(label, {
+            "label": label,
+            "records": 0,
+            "active_records": 0,
+            "cost": 0.0,
+            "admin_cost": 0.0,
+            "cmv": 0.0,
+            "output": 0.0,
+            "input": 0.0,
+            "difference": 0.0,
+            "variation": 0.0,
+            "break_production": 0.0,
+            "break_output": 0.0,
+        })
+        cost = parse_number(rec.get("CustoProdução", 0))
+        item["records"] += 1
+        item["active_records"] += 1 if cost else 0
+        item["cost"] += cost
+        item["admin_cost"] += parse_number(rec.get("CustoAdmin.", 0))
+        item["cmv"] += parse_number(rec.get("Total CMV", 0))
+        item["output"] += parse_number(rec.get("Total Saída", 0))
+        item["input"] += parse_number(rec.get("Total Entrada", 0))
+        item["difference"] += parse_number(rec.get("Diferença", 0))
+        item["variation"] += parse_number(rec.get("TotalVariação", 0))
+        item["break_production"] += parse_number(rec.get("QuebraProdução", 0))
+        item["break_output"] += parse_number(rec.get("QuebraSaída", 0))
+
+    groups = sorted(grouped.values(), key=lambda item: abs(item["cost"]), reverse=True)[:limit]
+    max_cost = max([abs(item["cost"]) for item in groups] + [1])
+    for item in groups:
+        item["cost_fmt"] = brl(item["cost"])
+        item["admin_cost_fmt"] = brl(item["admin_cost"])
+        item["cmv_fmt"] = brl(item["cmv"], signed=True)
+        item["output_fmt"] = brl(item["output"], signed=True)
+        item["input_fmt"] = brl(item["input"], signed=True)
+        item["difference_fmt"] = brl(item["difference"], signed=True)
+        item["variation_fmt"] = brl(item["variation"], signed=True)
+        item["break_production_fmt"] = brl(item["break_production"], signed=True)
+        item["break_output_fmt"] = brl(item["break_output"], signed=True)
+        item["share_pct"] = round(safe_div(item["cost"], total_cost) * 100, 1) if total_cost else 0
+        item["share_pct_fmt"] = pct(item["share_pct"])
+        item["bar_width"] = round(safe_div(abs(item["cost"]), max_cost) * 100, 1) if max_cost else 0
+        item["status"] = "positivo" if item["cost"] > 0 else "zerado"
+    return groups
+
+
+def analyze_production_cost(file_path: str | Path) -> Dict[str, Any]:
+    records_raw, meta = prepare_production_cost_records(file_path)
+    total_cost = _sum_record_metric(records_raw, "CustoProdução")
+    total_admin = _sum_record_metric(records_raw, "CustoAdmin.")
+    total_cmv = _sum_record_metric(records_raw, "Total CMV")
+    total_output = _sum_record_metric(records_raw, "Total Saída")
+    total_input = _sum_record_metric(records_raw, "Total Entrada")
+    total_difference = _sum_record_metric(records_raw, "Diferença")
+    total_variation = _sum_record_metric(records_raw, "TotalVariação")
+    total_break_prod = _sum_record_metric(records_raw, "QuebraProdução")
+    total_break_output = _sum_record_metric(records_raw, "QuebraSaída")
+
+    max_record_cost = max([abs(parse_number(rec.get("CustoProdução", 0))) for rec in records_raw] + [1])
+    records = [_format_production_record(rec, max_record_cost) for rec in records_raw]
+    active_records = [rec for rec in records if abs(rec["custo_producao"]) > 0]
+
+    line_groups = _group_production_by(records_raw, "linha", total_cost, limit=20)
+    daily_groups = _group_production_by(records_raw, "data", total_cost, limit=999)
+    daily_groups = sorted(daily_groups, key=lambda item: _sort_full_date_label(item["label"]))
+    daily_costs = [item["cost"] for item in daily_groups]
+    daily_labels = [item["label"][:5] for item in daily_groups]
+    max_daily_cost = max([abs(item["cost"]) for item in daily_groups] + [1])
+    for item in daily_groups:
+        item["height"] = max(8, round(safe_div(abs(item["cost"]), max_daily_cost) * 100, 1)) if max_daily_cost else 8
+
+    top_records = sorted(records, key=lambda rec: abs(rec["custo_producao"]), reverse=True)[:20]
+    active_days = len([item for item in daily_groups if abs(item["cost"]) > 0])
+    day_count = len(daily_groups)
+    top_line = line_groups[0] if line_groups else None
+    top_day = max(daily_groups, key=lambda item: abs(item["cost"])) if daily_groups else None
+
+    production = {
+        "line_groups": line_groups,
+        "daily_summary": daily_groups,
+        "top_records": top_records,
+        "trend": {
+            "values": daily_costs,
+            "labels": daily_labels,
+            "points": make_trend_points(daily_costs),
+            "point_objects": make_trend_point_objects(daily_costs, daily_labels),
+        },
+        "breakdown": [
+            {"label": "CustoProdução", "value": total_cost, "value_fmt": brl(total_cost), "status": "positivo" if total_cost >= 0 else "negativo"},
+            {"label": "CustoAdmin.", "value": total_admin, "value_fmt": brl(total_admin, signed=True), "status": "positivo" if total_admin >= 0 else "negativo"},
+            {"label": "QuebraProdução", "value": total_break_prod, "value_fmt": brl(total_break_prod, signed=True), "status": "positivo" if total_break_prod >= 0 else "negativo"},
+            {"label": "QuebraSaída", "value": total_break_output, "value_fmt": brl(total_break_output, signed=True), "status": "positivo" if total_break_output >= 0 else "negativo"},
+            {"label": "Diferença", "value": total_difference, "value_fmt": brl(total_difference, signed=True), "status": "positivo" if total_difference >= 0 else "negativo"},
+        ],
+    }
+
+    analysis = {
+        "report_type": "production_cost",
+        "meta": {
+            **meta,
+            "month_cols": [],
+            "loja": records[0].get("empresa", "Não identificada") if records else "Não identificada",
+        },
+        "kpis": {
+            "loja": records[0].get("empresa", "Não identificada") if records else "Não identificada",
+            "total_rows": len(records),
+            "active_records": len(active_records),
+            "day_count": day_count,
+            "active_days": active_days,
+            "line_count": len(line_groups),
+            "total_cost_production": total_cost,
+            "total_cost_production_fmt": brl(total_cost),
+            "total_cost_admin": total_admin,
+            "total_cost_admin_fmt": brl(total_admin, signed=True),
+            "total_cmv": total_cmv,
+            "total_cmv_fmt": brl(total_cmv, signed=True),
+            "total_output": total_output,
+            "total_output_fmt": brl(total_output, signed=True),
+            "total_input": total_input,
+            "total_input_fmt": brl(total_input, signed=True),
+            "net_difference": total_difference,
+            "net_difference_fmt": brl(total_difference, signed=True),
+            "total_variation": total_variation,
+            "total_variation_fmt": brl(total_variation, signed=True),
+            "break_production": total_break_prod,
+            "break_production_fmt": brl(total_break_prod, signed=True),
+            "break_output": total_break_output,
+            "break_output_fmt": brl(total_break_output, signed=True),
+            "cost_vs_cmv_pct": round(safe_div(total_cost, abs(total_cmv)) * 100, 1) if total_cmv else 0,
+            "cost_vs_output_pct": round(safe_div(total_cost, abs(total_output)) * 100, 1) if total_output else 0,
+            "cost_vs_cmv_pct_fmt": pct(round(safe_div(total_cost, abs(total_cmv)) * 100, 1) if total_cmv else 0),
+            "cost_vs_output_pct_fmt": pct(round(safe_div(total_cost, abs(total_output)) * 100, 1) if total_output else 0),
+            "avg_cost_day": safe_div(total_cost, day_count),
+            "avg_cost_day_fmt": brl(safe_div(total_cost, day_count)),
+            "top_line": top_line["label"] if top_line else "Não identificado",
+            "top_line_cost_fmt": top_line["cost_fmt"] if top_line else "R$ 0,00",
+            "top_day": top_day["label"] if top_day else "Não identificado",
+            "top_day_cost_fmt": top_day["cost_fmt"] if top_day else "R$ 0,00",
+        },
+        "production": production,
+        "records": records,
+        "notes": [
+            "Este arquivo foi tratado como Relatório de Equilíbrio, separado da análise de inventário rotativo.",
+            "CustoProdução é apurado como movimento de produção por dia e por linha, não como divergência positiva/negativa.",
+            "Use o ranking por linha para identificar onde o CPP concentra mais valor e compare com CMV, saída e diferença.",
+        ],
+    }
+    return analysis
+
 def save_analysis_json(analysis: Dict[str, Any], path: str | Path) -> None:
     Path(path).write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
 

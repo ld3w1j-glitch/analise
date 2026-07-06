@@ -3300,3 +3300,50 @@ tr.chart-hover:hover td {
 .divergence-tab-panel[hidden] {
     display: none !important;
 }
+
+/* Apuração de Custo de Produção */
+.production-kpis .kpi-card small {
+    line-height: 1.35;
+}
+
+.production-grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, .9fr);
+}
+
+.production-ranking-panel .impact-strip-row strong,
+.production-breakdown-panel .note-item b {
+    letter-spacing: -.02em;
+}
+
+.production-notes .note-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.production-notes .note-item span {
+    color: var(--muted);
+}
+
+.production-notes .note-item b {
+    font-size: .95rem;
+}
+
+.production-trend-panel {
+    margin-top: 14px;
+}
+
+.production-day-labels {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+@media (max-width: 980px) {
+    .production-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .production-day-labels {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}

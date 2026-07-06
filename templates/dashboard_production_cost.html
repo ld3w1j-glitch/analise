@@ -1,0 +1,126 @@
+{% extends "dashboard_layout.html" %}
+{% set page_index = '2' %}
+{% set page_label = 'Custo de Produção' %}
+{% set page_title = 'Apuração do Custo de Produção' %}
+{% set page_description = 'Leitura separada do Relatório de Equilíbrio, focada no CPP/CustoProdução.' %}
+{% block page_actions %}
+<span class="interactive-hint">Passe o mouse ou clique para detalhar</span>
+<a href="{{ url_for('index') }}" class="ghost-btn">Nova análise</a>
+<a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Exportar CSV</a>
+<a href="{{ url_for('dashboard_details', report_id=analysis.report_id) }}" class="primary-inline">Ver detalhes</a>
+{% endblock %}
+{% block dashboard_body %}
+{% set k = analysis.kpis %}
+<section class="reference-kpis production-kpis">
+    <article class="kpi-card hero-kpi chart-hover" tabindex="0" data-tooltip="CustoProdução total apurado no arquivo: {{ k.total_cost_production_fmt }}." data-detail-title="CustoProdução total" data-detail="Soma da coluna CustoProdução no Relatório de Equilíbrio. Essa leitura fica separada da análise de divergência para não misturar os conceitos." data-detail-metrics="CustoProdução: {{ k.total_cost_production_fmt }}|Registros com custo: {{ k.active_records }}|Dias com custo: {{ k.active_days }}|Média por dia: {{ k.avg_cost_day_fmt }}">
+        <span class="kpi-label">CustoProdução total</span>
+        <strong>{{ k.total_cost_production_fmt }}</strong>
+        <small>{{ k.active_records }} registros com custo.</small>
+    </article>
+    <article class="kpi-card chart-hover" tabindex="0" data-tooltip="Dias analisados: {{ k.day_count }}. Dias com CustoProdução: {{ k.active_days }}." data-detail-title="Dias analisados" data-detail="Quantidade de dias encontrados na estrutura Data → Empresa → Linha." data-detail-metrics="Dias analisados: {{ k.day_count }}|Dias com custo: {{ k.active_days }}|Maior dia: {{ k.top_day }}|Valor do maior dia: {{ k.top_day_cost_fmt }}">
+        <span class="kpi-label">Dias analisados</span>
+        <strong>{{ k.day_count }}</strong>
+        <small>{{ k.active_days }} dias com custo.</small>
+    </article>
+    <article class="kpi-card chart-hover" tabindex="0" data-tooltip="Linha com maior CustoProdução: {{ k.top_line }} • {{ k.top_line_cost_fmt }}." data-detail-title="Maior linha" data-detail="Linha/categoria com maior participação no CustoProdução total." data-detail-metrics="Linha: {{ k.top_line }}|Valor: {{ k.top_line_cost_fmt }}|Linhas apuradas: {{ k.line_count }}|Registros: {{ k.total_rows }}">
+        <span class="kpi-label">Maior linha</span>
+        <strong>{{ k.top_line_cost_fmt }}</strong>
+        <small>{{ k.top_line }}</small>
+    </article>
+    <article class="kpi-card chart-hover" tabindex="0" data-tooltip="CustoProdução representa {{ k.cost_vs_cmv_pct_fmt }} do Total CMV." data-detail-title="CPP sobre CMV" data-detail="Comparação entre CustoProdução e Total CMV do mesmo relatório." data-detail-metrics="CustoProdução: {{ k.total_cost_production_fmt }}|Total CMV: {{ k.total_cmv_fmt }}|CPP/CMV: {{ k.cost_vs_cmv_pct_fmt }}">
+        <span class="kpi-label">CPP / CMV</span>
+        <strong>{{ k.cost_vs_cmv_pct_fmt }}</strong>
+        <small>Total CMV: {{ k.total_cmv_fmt }}</small>
+    </article>
+    <article class="kpi-card chart-hover" tabindex="0" data-tooltip="CustoProdução representa {{ k.cost_vs_output_pct_fmt }} do Total Saída." data-detail-title="CPP sobre saída" data-detail="Comparação entre CustoProdução e Total Saída para entender peso do custo de produção frente às saídas." data-detail-metrics="CustoProdução: {{ k.total_cost_production_fmt }}|Total Saída: {{ k.total_output_fmt }}|CPP/Saída: {{ k.cost_vs_output_pct_fmt }}">
+        <span class="kpi-label">CPP / Saída</span>
+        <strong>{{ k.cost_vs_output_pct_fmt }}</strong>
+        <small>Total Saída: {{ k.total_output_fmt }}</small>
+    </article>
+</section>
+
+<section class="content-grid production-grid">
+    <article class="panel large-panel production-ranking-panel">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>CustoProdução por linha</h2>
+                <p>Ranking das linhas que mais concentram custo de produção.</p>
+            </div>
+        </div>
+        <div class="impact-strip-list">
+            {% for item in analysis.production.line_groups[:10] %}
+            <div class="impact-strip-row chart-hover" tabindex="0" data-tooltip="{{ item.label }} • {{ item.cost_fmt }} • {{ item.share_pct_fmt }} do total" data-detail-title="{{ item.label }}" data-detail="Resumo do CustoProdução agrupado por linha/categoria." data-detail-metrics="CustoProdução: {{ item.cost_fmt }}|Participação: {{ item.share_pct_fmt }}|Registros com custo: {{ item.active_records }}|CMV: {{ item.cmv_fmt }}|Saída: {{ item.output_fmt }}|Diferença: {{ item.difference_fmt }}">
+                <div>
+                    <strong>{{ item.label }}</strong>
+                    <small>{{ item.active_records }} com custo • {{ item.share_pct_fmt }} do total</small>
+                </div>
+                <div class="impact-track"><i class="positivo" style="width: {{ item.bar_width }}%"></i></div>
+                <span class="positivo">{{ item.cost_fmt }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel production-breakdown-panel">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>Composição técnica</h2>
+                <p>Indicadores de apoio ao apuramento.</p>
+            </div>
+        </div>
+        <div class="note-list production-notes">
+            {% for item in analysis.production.breakdown %}
+            <div class="note-item chart-hover" tabindex="0" data-tooltip="{{ item.label }}: {{ item.value_fmt }}" data-detail-title="{{ item.label }}" data-detail="Indicador técnico do Relatório de Equilíbrio." data-detail-metrics="Indicador: {{ item.label }}|Valor: {{ item.value_fmt }}">
+                <span>{{ item.label }}</span>
+                <b class="{{ item.status }}">{{ item.value_fmt }}</b>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+
+<section class="panel reference-trend-panel production-trend-panel">
+    <div class="panel-head compact-head">
+        <div>
+            <h2>Evolução diária do CustoProdução</h2>
+            <p>Comportamento do custo de produção ao longo dos dias do relatório.</p>
+        </div>
+        <span class="chip pos">{{ k.avg_cost_day_fmt }} / dia</span>
+    </div>
+    <div class="trend-stage">
+        <svg class="trend-svg reference-trend" viewBox="0 0 500 170" preserveAspectRatio="none">
+            <polyline class="trend-shadow" points="{{ analysis.production.trend.points }}" />
+            <polyline class="trend-line" points="{{ analysis.production.trend.points }}" />
+        </svg>
+        <div class="trend-points">
+            {% for point in analysis.production.trend.point_objects %}
+            <button class="trend-point chart-hover" style="left: {{ point.x_pct }}%; top: {{ point.y_pct }}%;" data-tooltip="{{ point.label }} • {{ point.value_fmt }}" data-detail-title="CustoProdução — {{ point.label }}" data-detail="Ponto diário do CustoProdução." data-detail-metrics="Dia: {{ point.label }}|CustoProdução: {{ point.value_fmt }}"></button>
+            {% endfor %}
+        </div>
+        <div class="day-labels production-day-labels">
+            {% for label in analysis.production.trend.labels[:12] %}<span>{{ label }}</span>{% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="panel impact-strip-panel">
+    <div class="panel-head compact-head">
+        <div>
+            <h2>Maiores registros de CustoProdução</h2>
+            <p>Linhas/dias individuais com maior valor de CustoProdução.</p>
+        </div>
+    </div>
+    <div class="impact-strip-list">
+        {% for item in analysis.production.top_records[:8] %}
+        <div class="impact-strip-row chart-hover" tabindex="0" data-tooltip="{{ item.data }} • {{ item.linha }} • {{ item.custo_producao_fmt }}" data-detail-title="{{ item.linha }}" data-detail="Registro individual do Relatório de Equilíbrio." data-detail-metrics="Data: {{ item.data }}|Linha: {{ item.linha }}|CustoProdução: {{ item.custo_producao_fmt }}|CustoAdmin.: {{ item.custo_admin_fmt }}|CMV: {{ item.total_cmv_fmt }}|Diferença: {{ item.diferenca_fmt }}">
+            <div>
+                <strong>{{ item.linha }}</strong>
+                <small>{{ item.data }} • {{ item.empresa }}</small>
+            </div>
+            <div class="impact-track"><i class="positivo" style="width: {{ item.bar_width }}%"></i></div>
+            <span class="positivo">{{ item.custo_producao_fmt }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
