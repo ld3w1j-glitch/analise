@@ -152,6 +152,21 @@ function ensureDetailPanel() {
             <span class="detail-status">Análise</span>
         </div>
         <p class="detail-body"></p>
+        <div class="detail-visual" aria-label="Animação visual do item selecionado">
+            <div class="detail-visual-head">
+                <span>Análise visual</span>
+                <strong class="detail-visual-total">--</strong>
+            </div>
+            <div class="detail-visual-stage">
+                <div class="detail-visual-bars"></div>
+                <svg class="detail-visual-line" viewBox="0 0 220 82" preserveAspectRatio="none">
+                    <path class="detail-visual-area" d=""></path>
+                    <polyline class="detail-visual-path" points=""></polyline>
+                </svg>
+                <div class="detail-visual-donut"><span>0%</span></div>
+            </div>
+            <div class="detail-visual-caption">Clique em outro ponto para atualizar este gráfico.</div>
+        </div>
         <div class="detail-grid"></div>
         <div class="detail-related">
             <strong>Leitura recomendada</strong>
@@ -207,6 +222,98 @@ function metricFromPart(part) {
     const value = part.slice(index + 1).trim();
     if (!label || !value) return null;
     return { label, value };
+}
+
+function extractNumbersFromText(text) {
+    const matches = String(text || '').match(/[-+]?R?\$?\s*[0-9.]+(?:,[0-9]+)?|[-+]?[0-9]+(?:,[0-9]+)?%?/g) || [];
+    return matches.map((raw) => {
+        const cleaned = raw
+            .replace(/R\$/g, '')
+            .replace(/%/g, '')
+            .replace(/\s/g, '')
+            .replace(/\./g, '')
+            .replace(',', '.')
+            .replace(/[^0-9.\-+]/g, '');
+        const value = Number(cleaned);
+        return Number.isFinite(value) ? Math.abs(value) : 0;
+    }).filter((value) => value > 0);
+}
+
+function buildDetailVisualData(element) {
+    const source = [
+        element.dataset.detailTitle,
+        element.dataset.detail,
+        element.dataset.tooltip,
+        element.dataset.detailMetrics,
+        element.textContent,
+    ].filter(Boolean).join(' • ');
+
+    let values = extractNumbersFromText(source).slice(0, 7);
+    if (!values.length) values = [18, 34, 52, 46, 72, 64, 88];
+    if (values.length === 1) {
+        const base = values[0];
+        values = [base * .22, base * .48, base * .7, base, base * .58, base * .86];
+    }
+    while (values.length < 5) {
+        const last = values[values.length - 1] || 10;
+        values.push(Math.max(4, last * (0.72 + values.length * 0.08)));
+    }
+
+    const max = Math.max(...values, 1);
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const first = values[0] || 0;
+    const last = values[values.length - 1] || 0;
+    const intensity = Math.max(6, Math.min(94, Math.round((last / max) * 100)));
+    const status = inferStatus(element);
+    return { values, max, total, first, last, intensity, status };
+}
+
+function formatCompactVisualValue(value) {
+    if (!Number.isFinite(value)) return '--';
+    if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1).replace('.', ',')}M`;
+    if (value >= 1000) return `R$ ${(value / 1000).toFixed(1).replace('.', ',')}K`;
+    return String(Math.round(value)).replace('.', ',');
+}
+
+function renderDetailVisual(element, panel) {
+    const visual = panel.querySelector('.detail-visual');
+    if (!visual) return;
+
+    const { values, max, total, intensity, status } = buildDetailVisualData(element);
+    const bars = visual.querySelector('.detail-visual-bars');
+    const totalNode = visual.querySelector('.detail-visual-total');
+    const pathNode = visual.querySelector('.detail-visual-path');
+    const areaNode = visual.querySelector('.detail-visual-area');
+    const donut = visual.querySelector('.detail-visual-donut');
+    const donutLabel = donut?.querySelector('span');
+
+    visual.classList.remove('is-positive', 'is-negative', 'is-neutral', 'is-animating');
+    visual.classList.add(status === 'Positivo' ? 'is-positive' : status === 'Atenção' ? 'is-negative' : 'is-neutral');
+    void visual.offsetWidth;
+    visual.classList.add('is-animating');
+
+    totalNode.textContent = formatCompactVisualValue(total);
+    bars.innerHTML = values.map((value, index) => {
+        const height = Math.max(12, Math.round((value / max) * 100));
+        return `<i style="--h:${height}%; --delay:${index * 70}ms" title="${escapeHtml(formatCompactVisualValue(value))}"></i>`;
+    }).join('');
+
+    const width = 220;
+    const height = 82;
+    const pad = 8;
+    const points = values.map((value, index) => {
+        const x = pad + index * ((width - pad * 2) / Math.max(values.length - 1, 1));
+        const y = height - pad - (value / max) * (height - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const area = `M${points.split(' ')[0]} L${points.split(' ').slice(1).join(' L')} L${width - pad},${height - pad} L${pad},${height - pad} Z`;
+    pathNode.setAttribute('points', points);
+    areaNode.setAttribute('d', area);
+
+    if (donut) {
+        donut.style.setProperty('--value', `${intensity}%`);
+        if (donutLabel) donutLabel.textContent = `${intensity}%`;
+    }
 }
 
 function buildDetailGrid(element) {
@@ -297,6 +404,7 @@ function openDetailPanel(element) {
     panel.querySelector('.detail-status').textContent = status;
     panel.querySelector('.detail-status').className = `detail-status ${status === 'Atenção' ? 'is-negative' : status === 'Positivo' ? 'is-positive' : ''}`;
     panel.querySelector('.detail-related-list').innerHTML = buildRelatedList(element);
+    renderDetailVisual(element, panel);
 
     const detailsUrl = document.querySelector('a[href*="detalhes"]')?.getAttribute('href');
     const tableLink = panel.querySelector('.detail-open-table');

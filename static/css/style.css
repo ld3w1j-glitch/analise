@@ -2912,3 +2912,162 @@ tr.chart-hover:hover td {
     margin-bottom: 8px;
 }
 .auth-compact .auth-form { margin-top: 22px; }
+
+/* Mini gráfico animado dentro do painel de detalhes */
+.detail-visual {
+    margin: 18px 0 14px;
+    padding: 16px;
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 85% 15%, rgba(159,234,255,.11), transparent 36%),
+        linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+    border: 1px solid rgba(255,255,255,.07);
+}
+.detail-visual::before {
+    content: "";
+    position: absolute;
+    inset: -40% -20%;
+    opacity: .32;
+    background: repeating-radial-gradient(circle at 75% 30%, rgba(143,255,202,.16) 0 1px, transparent 1px 16px);
+    transform: rotate(-8deg);
+    pointer-events: none;
+}
+.detail-visual-head,
+.detail-visual-caption,
+.detail-visual-stage {
+    position: relative;
+    z-index: 1;
+}
+.detail-visual-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.detail-visual-head span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.detail-visual-head strong {
+    font-size: 18px;
+    color: var(--green);
+}
+.detail-visual.is-negative .detail-visual-head strong { color: var(--red); }
+.detail-visual-stage {
+    min-height: 112px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr 86px;
+    gap: 14px;
+    align-items: end;
+}
+.detail-visual-bars {
+    height: 100px;
+    display: flex;
+    align-items: end;
+    gap: 8px;
+    padding: 8px 0 0;
+}
+.detail-visual-bars i {
+    flex: 1;
+    min-width: 8px;
+    height: 0;
+    border-radius: 999px 999px 8px 8px;
+    background: linear-gradient(180deg, var(--green), rgba(143,255,202,.12));
+    box-shadow: 0 0 18px rgba(143,255,202,.18);
+    animation: detailBarRise .72s cubic-bezier(.2,.8,.2,1) forwards;
+    animation-delay: var(--delay, 0ms);
+}
+.detail-visual.is-negative .detail-visual-bars i {
+    background: linear-gradient(180deg, var(--red), rgba(255,120,148,.12));
+    box-shadow: 0 0 18px rgba(255,120,148,.16);
+}
+.detail-visual-line {
+    width: 100%;
+    height: 100px;
+    overflow: visible;
+    align-self: center;
+}
+.detail-visual-area {
+    fill: rgba(143,255,202,.12);
+    opacity: 0;
+    animation: detailFadeIn .65s ease forwards .2s;
+}
+.detail-visual.is-negative .detail-visual-area { fill: rgba(255,120,148,.10); }
+.detail-visual-path {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 420;
+    stroke-dashoffset: 420;
+    filter: drop-shadow(0 0 10px rgba(143,255,202,.35));
+    animation: detailDrawLine 1s cubic-bezier(.35,.7,.2,1) forwards .16s;
+}
+.detail-visual.is-negative .detail-visual-path {
+    stroke: var(--red);
+    filter: drop-shadow(0 0 10px rgba(255,120,148,.30));
+}
+.detail-visual-donut {
+    --value: 0%;
+    width: 78px;
+    height: 78px;
+    align-self: center;
+    justify-self: end;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    position: relative;
+    background: conic-gradient(var(--green) var(--value), rgba(255,255,255,.08) 0);
+    animation: detailPop .48s cubic-bezier(.2,.9,.2,1) forwards .2s;
+    transform: scale(.78);
+    opacity: 0;
+}
+.detail-visual.is-negative .detail-visual-donut {
+    background: conic-gradient(var(--red) var(--value), rgba(255,255,255,.08) 0);
+}
+.detail-visual-donut::before {
+    content: "";
+    position: absolute;
+    inset: 11px;
+    border-radius: inherit;
+    background: #151820;
+    border: 1px solid rgba(255,255,255,.06);
+}
+.detail-visual-donut span {
+    position: relative;
+    z-index: 1;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+}
+.detail-visual-caption {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+@keyframes detailBarRise {
+    from { height: 0; opacity: .4; transform: translateY(8px); }
+    to { height: var(--h); opacity: 1; transform: translateY(0); }
+}
+@keyframes detailDrawLine {
+    to { stroke-dashoffset: 0; }
+}
+@keyframes detailFadeIn {
+    to { opacity: 1; }
+}
+@keyframes detailPop {
+    to { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 720px) {
+    .detail-visual-stage { grid-template-columns: 1fr; }
+    .detail-visual-donut { justify-self: start; }
+}
