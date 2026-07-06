@@ -291,17 +291,52 @@ function firstValueMatching(text, pattern) {
 
 function getPrimaryVisualValue(element) {
     // Prioridade 1: métricas detalhadas. Em linhas/tabelas, evita pegar números
-    // da descrição ou da posição da linha antes do valor de divergência.
+    // da descrição, do código do produto/categoria ou valores zerados antes do
+    // saldo real. Ex.: Categoria com Positivo R$ 0,00 e Saldo líquido -R$ 13.932,12.
     const metrics = String(element.dataset.detailMetrics || '')
         .split('|')
         .map(metricFromPart)
         .filter(Boolean);
-    for (const metric of metrics) {
-        if (/R\$|%|valor|saldo|total|índice|indice|score/i.test(`${metric.label} ${metric.value}`)) {
+
+    const pickMetricValue = (patterns, allowZero = false) => {
+        for (const metric of metrics) {
+            const label = String(metric.label || '').toLowerCase();
+            if (!patterns.some((pattern) => pattern.test(label))) continue;
             const value = parseBrazilianNumber(metric.value);
-            if (Number.isFinite(value)) return value;
+            if (Number.isFinite(value) && (allowZero || value !== 0)) return value;
         }
-    }
+        return null;
+    };
+
+    // Saldo líquido/diferença é a leitura principal dos itens agrupados.
+    const balanceValue = pickMetricValue([
+        /saldo\s*l[ií]quido/,
+        /diverg[eê]ncia\s*l[ií]quida/,
+        /diferen[cç]a/,
+        /^valor$/,
+        /^saldo$/,
+        /net/,
+    ]);
+    if (Number.isFinite(balanceValue)) return balanceValue;
+
+    // Depois vêm indicadores percentuais e valores totais não zerados.
+    const indicatorValue = pickMetricValue([/índice|indice|score|participa[cç][aã]o|percentual/]);
+    if (Number.isFinite(indicatorValue)) return indicatorValue;
+
+    const totalValue = pickMetricValue([/volume\s*total|total\s*visual|valor\s*positivo|valor\s*negativo|positivo|negativo|total/]);
+    if (Number.isFinite(totalValue)) return totalValue;
+
+    // Só aceite zero quando não existe outro valor útil. Isso evita o gráfico
+    // ampliado mostrar 0 ao clicar em categorias que têm positivo zerado.
+    const zeroMetricValue = pickMetricValue([
+        /saldo\s*l[ií]quido/,
+        /diverg[eê]ncia\s*l[ií]quida/,
+        /diferen[cç]a/,
+        /^valor$/,
+        /volume\s*total|valor\s*positivo|valor\s*negativo|positivo|negativo|total/,
+        /índice|indice|score|participa[cç][aã]o|percentual/,
+    ], true);
+    if (Number.isFinite(zeroMetricValue)) return zeroMetricValue;
 
     const source = [element.dataset.tooltip, element.dataset.detail, element.textContent].filter(Boolean).join(' • ');
 
