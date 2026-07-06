@@ -3071,3 +3071,153 @@ tr.chart-hover:hover td {
     .detail-visual-stage { grid-template-columns: 1fr; }
     .detail-visual-donut { justify-self: start; }
 }
+
+/* Área ampliada do gráfico quando o usuário clica em um item.
+   Esta área ocupa o lado esquerdo da tela, como marcado na referência enviada. */
+.detail-spotlight {
+    position: fixed;
+    left: clamp(28px, 11vw, 260px);
+    top: 50%;
+    width: min(760px, 48vw);
+    min-height: 440px;
+    transform: translateY(-50%) translateX(-24px) scale(.98);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 9998;
+    padding: 30px;
+    border-radius: 34px;
+    color: var(--text);
+    background:
+        radial-gradient(circle at 20% 15%, rgba(143,255,202,.16), transparent 34%),
+        radial-gradient(circle at 78% 18%, rgba(159,234,255,.12), transparent 34%),
+        linear-gradient(145deg, rgba(31,34,42,.86), rgba(9,11,15,.78));
+    border: 1px solid rgba(143,255,202,.18);
+    box-shadow:
+        0 40px 110px rgba(0,0,0,.44),
+        inset 0 1px 0 rgba(255,255,255,.05),
+        0 0 0 1px rgba(255,255,255,.03);
+    backdrop-filter: blur(22px);
+    overflow: hidden;
+    transition:
+        opacity .28s ease,
+        visibility .28s ease,
+        transform .38s cubic-bezier(.2,.85,.2,1);
+}
+.detail-spotlight::before {
+    content: "";
+    position: absolute;
+    inset: -45% -20%;
+    opacity: .26;
+    background: repeating-radial-gradient(circle at 76% 42%, rgba(143,255,202,.14) 0 1px, transparent 1px 18px);
+    pointer-events: none;
+}
+.detail-spotlight::after {
+    content: "";
+    position: absolute;
+    inset: auto 34px 28px 34px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(143,255,202,.42), transparent);
+    opacity: .7;
+}
+.detail-spotlight.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0) scale(1);
+}
+.spotlight-kicker,
+.spotlight-head,
+.spotlight-visual {
+    position: relative;
+    z-index: 1;
+}
+.spotlight-kicker {
+    margin-bottom: 12px;
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+.spotlight-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+.spotlight-head h2 {
+    margin: 0 0 8px;
+    max-width: 520px;
+    font-size: clamp(34px, 3.5vw, 58px);
+    line-height: .95;
+    letter-spacing: -.055em;
+}
+.spotlight-head p {
+    margin: 0;
+    max-width: 570px;
+    color: var(--muted);
+    font-size: 14px;
+}
+.spotlight-status {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    font-size: 12px;
+    font-weight: 900;
+}
+.spotlight-status.is-positive {
+    color: var(--green);
+    background: rgba(143,255,202,.09);
+    border-color: rgba(143,255,202,.2);
+}
+.spotlight-status.is-negative {
+    color: var(--red);
+    background: rgba(255,120,148,.09);
+    border-color: rgba(255,120,148,.2);
+}
+.spotlight-visual {
+    min-height: 285px;
+    padding: 24px;
+    border-radius: 28px;
+    background:
+        linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
+        rgba(255,255,255,.02);
+    border-color: rgba(143,255,202,.15);
+}
+.spotlight-visual .detail-visual-head span { font-size: 12px; }
+.spotlight-visual .detail-visual-head strong { font-size: clamp(24px, 2vw, 34px); }
+.spotlight-visual .detail-visual-stage {
+    min-height: 210px;
+    grid-template-columns: 1.05fr 1.25fr 140px;
+    gap: 24px;
+}
+.spotlight-visual .detail-visual-bars { height: 190px; gap: 12px; }
+.spotlight-visual .detail-visual-bars i { min-width: 16px; }
+.spotlight-visual .detail-visual-line { height: 190px; }
+.spotlight-visual .detail-visual-path { stroke-width: 5; }
+.spotlight-visual .detail-visual-donut {
+    width: 124px;
+    height: 124px;
+}
+.spotlight-visual .detail-visual-donut::before { inset: 18px; }
+.spotlight-visual .detail-visual-donut span { font-size: 24px; }
+.spotlight-visual .detail-visual-caption { font-size: 12px; }
+
+@media (max-width: 1180px) {
+    .detail-spotlight {
+        display: none;
+    }
+}
+
+@media (min-width: 1181px) {
+    .detail-panel.is-open {
+        right: clamp(28px, 6vw, 120px);
+    }
+}

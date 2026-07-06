@@ -128,15 +128,45 @@ document.addEventListener('focusout', (event) => {
 // Qualquer item com data-tooltip pode abrir um painel com mais informações.
 let detailOverlay = null;
 let detailPanel = null;
+let detailSpotlight = null;
 let selectedDetailElement = null;
 let selectionToast = null;
 
 function ensureDetailPanel() {
-    if (detailOverlay && detailPanel) return { overlay: detailOverlay, panel: detailPanel };
+    if (detailOverlay && detailPanel && detailSpotlight) return { overlay: detailOverlay, panel: detailPanel, spotlight: detailSpotlight };
 
     detailOverlay = document.createElement('div');
     detailOverlay.className = 'detail-overlay';
     detailOverlay.setAttribute('aria-hidden', 'true');
+
+    detailSpotlight = document.createElement('section');
+    detailSpotlight.className = 'detail-spotlight';
+    detailSpotlight.setAttribute('aria-hidden', 'true');
+    detailSpotlight.innerHTML = `
+        <div class="spotlight-kicker">Análise do item selecionado</div>
+        <div class="spotlight-head">
+            <div>
+                <h2 class="spotlight-title">Gráfico detalhado</h2>
+                <p class="spotlight-body">Clique em qualquer elemento do dashboard para atualizar esta visualização.</p>
+            </div>
+            <span class="spotlight-status">Análise</span>
+        </div>
+        <div class="detail-visual spotlight-visual" aria-label="Animação visual ampliada do item selecionado">
+            <div class="detail-visual-head">
+                <span>Composição visual</span>
+                <strong class="detail-visual-total">--</strong>
+            </div>
+            <div class="detail-visual-stage">
+                <div class="detail-visual-bars"></div>
+                <svg class="detail-visual-line" viewBox="0 0 220 82" preserveAspectRatio="none">
+                    <path class="detail-visual-area" d=""></path>
+                    <polyline class="detail-visual-path" points=""></polyline>
+                </svg>
+                <div class="detail-visual-donut"><span>0%</span></div>
+            </div>
+            <div class="detail-visual-caption">Esta área mostra o gráfico animado do item que você clicou.</div>
+        </div>
+    `;
 
     detailPanel = document.createElement('section');
     detailPanel.className = 'detail-panel';
@@ -180,19 +210,24 @@ function ensureDetailPanel() {
     `;
 
     document.body.appendChild(detailOverlay);
+    document.body.appendChild(detailSpotlight);
     document.body.appendChild(detailPanel);
 
     detailOverlay.addEventListener('click', closeDetailPanel);
     detailPanel.querySelector('.detail-close').addEventListener('click', closeDetailPanel);
     detailPanel.querySelector('.detail-copy').addEventListener('click', copyCurrentDetailSummary);
 
-    return { overlay: detailOverlay, panel: detailPanel };
+    return { overlay: detailOverlay, panel: detailPanel, spotlight: detailSpotlight };
 }
 
 function closeDetailPanel() {
     if (!detailOverlay || !detailPanel) return;
     detailOverlay.classList.remove('is-open');
     detailPanel.classList.remove('is-open');
+    if (detailSpotlight) {
+        detailSpotlight.classList.remove('is-open');
+        detailSpotlight.setAttribute('aria-hidden', 'true');
+    }
     detailOverlay.setAttribute('aria-hidden', 'true');
     if (selectedDetailElement) selectedDetailElement.classList.remove('is-selected-detail');
     selectedDetailElement = null;
@@ -388,7 +423,7 @@ function showSelectionToast(message) {
 }
 
 function openDetailPanel(element) {
-    const { overlay, panel } = ensureDetailPanel();
+    const { overlay, panel, spotlight } = ensureDetailPanel();
     const title = inferDetailTitle(element);
     const body = element.dataset.detail || element.dataset.tooltip || 'Informações relacionadas ao item selecionado.';
     const grid = buildDetailGrid(element);
@@ -406,12 +441,25 @@ function openDetailPanel(element) {
     panel.querySelector('.detail-related-list').innerHTML = buildRelatedList(element);
     renderDetailVisual(element, panel);
 
+    if (spotlight) {
+        spotlight.querySelector('.spotlight-title').textContent = title;
+        spotlight.querySelector('.spotlight-body').textContent = body;
+        const statusNode = spotlight.querySelector('.spotlight-status');
+        statusNode.textContent = status;
+        statusNode.className = `spotlight-status ${status === 'Atenção' ? 'is-negative' : status === 'Positivo' ? 'is-positive' : ''}`;
+        renderDetailVisual(element, spotlight);
+    }
+
     const detailsUrl = document.querySelector('a[href*="detalhes"]')?.getAttribute('href');
     const tableLink = panel.querySelector('.detail-open-table');
     if (detailsUrl) tableLink.setAttribute('href', detailsUrl);
 
     overlay.classList.add('is-open');
     panel.classList.add('is-open');
+    if (spotlight) {
+        spotlight.classList.add('is-open');
+        spotlight.setAttribute('aria-hidden', 'false');
+    }
     overlay.setAttribute('aria-hidden', 'false');
     showSelectionToast('Detalhes abertos');
 }
