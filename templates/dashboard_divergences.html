@@ -1,0 +1,137 @@
+{% extends "dashboard_layout.html" %}
+{% set page_index = '3' %}
+{% set page_label = 'Divergências' %}
+{% set page_title = 'Divergências' %}
+{% set page_description = 'Análise detalhada das divergências positivas e negativas.' %}
+{% block page_actions %}
+<span class="interactive-hint">Passe o mouse ou clique para detalhar</span>
+<span class="period-chip">Período <b>Última análise</b></span>
+<a href="{{ url_for('dashboard_summary', report_id=analysis.report_id) }}" class="ghost-btn">Voltar</a>
+<a href="{{ url_for('dashboard_details', report_id=analysis.report_id) }}" class="primary-inline">Próxima etapa</a>
+{% endblock %}
+{% block dashboard_body %}
+{% set k = analysis.kpis %}
+<section class="divergence-reference-shell">
+    <div class="divergence-tabs">
+        <button class="active" type="button">Visão Geral</button>
+        <button type="button">Por Categoria</button>
+        <button type="button">Por Fornecedor</button>
+    </div>
+
+    <section class="divergence-top-grid">
+        <article class="panel divergence-chart-card chart-hover" tabindex="0" data-tooltip="Divergências positivas: {{ k.positive_count }} linhas somando {{ k.positive_total_fmt }}." data-detail-title="Divergências Positivas" data-detail="Resumo das linhas positivas encontradas na análise. Use esta informação para investigar sobras, lançamentos duplicados ou ajustes que aumentaram o saldo." data-detail-metrics="Linhas positivas: {{ k.positive_count }}|Valor positivo: {{ k.positive_total_fmt }}|Participação: {{ k.positive_pct }}%|Status: Sobra/ganho">
+                <span class="click-hint">Clique para abrir detalhes</span>
+            <div class="panel-head compact-head">
+                <div>
+                    <h2>Divergências Positivas</h2>
+                    <p><span class="positivo">{{ k.positive_count }} itens</span> • {{ k.positive_total_fmt }}</p>
+                </div>
+            </div>
+            {% if analysis.monthly_divergences %}
+            <div class="mini-bar-chart">
+                {% for item in analysis.monthly_divergences[:8] %}
+                <div class="mini-bar-item chart-hover" tabindex="0" data-tooltip="{{ item.label }} • Positivas: {{ item.positive_fmt }}" data-detail-title="Positivas em {{ item.label }}" data-detail="Total positivo encontrado neste período. Clique nos rankings abaixo para ver quais linhas tiveram maior impacto." data-detail-metrics="Período: {{ item.label }}|Valor positivo: {{ item.positive_fmt }}|Valor negativo: {{ item.negative_fmt }}|Saldo líquido: {{ item.net_fmt }}">
+                    <i class="mini-bar positivo" style="height: {{ item.pos_height }}%"></i>
+                    <small>{{ item.label }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state compact-empty">Nenhuma coluna mensal encontrada.</div>
+            {% endif %}
+        </article>
+
+        <article class="panel divergence-chart-card chart-hover" tabindex="0" data-tooltip="Divergências negativas: {{ k.negative_count }} linhas somando {{ k.negative_total_fmt }}." data-detail-title="Divergências Negativas" data-detail="Resumo das linhas negativas encontradas na análise. Use esta leitura para priorizar perdas, faltas, ruptura de saldo ou ajustes que reduziram o inventário." data-detail-metrics="Linhas negativas: {{ k.negative_count }}|Valor negativo: {{ k.negative_total_fmt }}|Participação: {{ k.negative_pct }}%|Status: Falta/perda">
+                <span class="click-hint red">Clique para abrir detalhes</span>
+            <div class="panel-head compact-head">
+                <div>
+                    <h2>Divergências Negativas</h2>
+                    <p><span class="negativo">{{ k.negative_count }} itens</span> • {{ k.negative_total_fmt }}</p>
+                </div>
+            </div>
+            {% if analysis.monthly_divergences %}
+            <div class="mini-bar-chart">
+                {% for item in analysis.monthly_divergences[:8] %}
+                <div class="mini-bar-item chart-hover" tabindex="0" data-tooltip="{{ item.label }} • Negativas: {{ item.negative_fmt }}" data-detail-title="Negativas em {{ item.label }}" data-detail="Total negativo encontrado neste período. Esta é uma boa entrada para investigar as maiores faltas no ranking por impacto." data-detail-metrics="Período: {{ item.label }}|Valor negativo: {{ item.negative_fmt }}|Valor positivo: {{ item.positive_fmt }}|Saldo líquido: {{ item.net_fmt }}">
+                    <i class="mini-bar negativo" style="height: {{ item.neg_height }}%"></i>
+                    <small>{{ item.label }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state compact-empty">Nenhuma coluna mensal encontrada.</div>
+            {% endif %}
+        </article>
+    </section>
+
+    <section class="divergence-bottom-grid">
+        <article class="panel evolution-card">
+            <div class="panel-head compact-head">
+                <div>
+                    <h2>Evolução das Divergências (R$)</h2>
+                    <p>Comparativo visual entre positivos e negativos por período.</p>
+                </div>
+                <div class="chart-legend-inline">
+                    <span><i class="dot pos-dot"></i>Positivas</span>
+                    <span><i class="dot neg-dot"></i>Negativas</span>
+                </div>
+            </div>
+            <div class="evolution-stage chart-hover" tabindex="0" data-tooltip="Evolução mensal: linha verde representa positivos e linha rosa representa negativos." data-detail-title="Evolução das Divergências" data-detail="Comparativo do comportamento por período. Clique em um ponto da linha para abrir detalhes daquele mês." data-detail-metrics="Positivo total: {{ k.positive_total_fmt }}|Negativo total: {{ k.negative_total_fmt }}|Saldo líquido: {{ k.net_total_fmt }}|Score: {{ k.balance_score_fmt }}">
+                <svg class="evolution-svg" viewBox="0 0 500 170" preserveAspectRatio="none">
+                    <polyline class="evo-shadow positive" points="{{ analysis.divergence_chart.positive_points }}" />
+                    <polyline class="evo-line positive" points="{{ analysis.divergence_chart.positive_points }}" />
+                    <polyline class="evo-shadow negative" points="{{ analysis.divergence_chart.negative_points }}" />
+                    <polyline class="evo-line negative" points="{{ analysis.divergence_chart.negative_points }}" />
+                </svg>
+                <div class="evolution-click-points">
+                    {% for point in analysis.divergence_chart.positive_point_objects[:8] %}
+                    <button class="evo-point positive chart-hover" style="left: {{ point.x_pct }}%; top: {{ point.y_pct }}%;" data-tooltip="{{ point.label }} • Positivas: {{ point.value_fmt }}" data-detail-title="Positivas — {{ point.label }}" data-detail="Ponto selecionado na linha verde de evolução positiva." data-detail-metrics="Período: {{ point.label }}|Valor positivo: {{ point.value_fmt }}|Tipo: Divergência positiva|Ação sugerida: Ver ranking positivo"></button>
+                    {% endfor %}
+                    {% for point in analysis.divergence_chart.negative_point_objects[:8] %}
+                    <button class="evo-point negative chart-hover" style="left: {{ point.x_pct }}%; top: {{ point.y_pct }}%;" data-tooltip="{{ point.label }} • Negativas: {{ point.value_fmt }}" data-detail-title="Negativas — {{ point.label }}" data-detail="Ponto selecionado na linha rosa de evolução negativa." data-detail-metrics="Período: {{ point.label }}|Valor negativo: {{ point.value_fmt }}|Tipo: Divergência negativa|Ação sugerida: Ver ranking negativo"></button>
+                    {% endfor %}
+                </div>
+                <div class="evolution-labels">
+                    {% for label in analysis.divergence_chart.labels[:8] %}<span>{{ label }}</span>{% endfor %}
+                </div>
+            </div>
+        </article>
+
+        <article class="panel divergence-index-card chart-hover" tabindex="0" data-tooltip="Índice baseado na participação das divergências negativas no volume divergente total." data-detail-title="Índice de Divergência" data-detail="Este indicador mostra o peso das divergências negativas dentro do volume total de divergências. Quanto maior, maior a atenção necessária." data-detail-metrics="Índice atual: {{ k.negative_pct }}%|Ideal: Menor que 30%|Negativas: {{ k.negative_total_fmt }}|Positivas: {{ k.positive_total_fmt }}">
+            <div class="panel-head compact-head">
+                <div>
+                    <h2>Índice de Divergência</h2>
+                </div>
+            </div>
+            <div class="gauge" style="--value: {{ k.negative_pct }};">
+                <div class="gauge-center">
+                    <strong>{{ k.negative_pct }}%</strong>
+                    <span>{{ 'Atenção' if k.negative_pct >= 50 else 'Equilíbrio' }}</span>
+                </div>
+            </div>
+            <p class="gauge-note">Ideal: menor que 30%</p>
+        </article>
+    </section>
+
+    <article class="panel impact-strip-panel">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>Ranking por impacto</h2>
+                <p>Principais linhas por valor absoluto, mantendo a leitura compacta da referência.</p>
+            </div>
+        </div>
+        <div class="impact-strip-list">
+            {% for item in analysis.top_records[:7] %}
+            <div class="impact-strip-row chart-hover" tabindex="0" data-tooltip="{{ item.descricao }} • {{ item.diferenca_fmt }} • {{ item.status|capitalize }}" data-detail-title="{{ item.descricao }}" data-detail="Linha selecionada no ranking por impacto. Priorize esta linha quando o valor absoluto da divergência for alto." data-detail-metrics="Linha: {{ item.linha }}|Valor: {{ item.diferenca_fmt }}|Status: {{ item.status|capitalize }}|Risco: {{ item.risk }}">
+                <div>
+                    <strong>{{ item.descricao }}</strong>
+                    <small>{{ item.linha }} • {{ item.status|capitalize }}</small>
+                </div>
+                <div class="impact-track"><i class="{{ item.status }}" style="width: {{ item.bar_width }}%"></i></div>
+                <span class="{{ item.status }}">{{ item.diferenca_fmt }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

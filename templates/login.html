@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Entrar - Inventário Dashboard{% endblock %}
+{% block content %}
+<section class="auth-shell auth-centered">
+    <div class="auth-panel glass-card auth-compact">
+        <div class="auth-brand">
+            <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7l9-5Zm0 3.2L6 8.5v6.9l6 3.4 6-3.4V8.5l-6-3.3Zm0 3.1 3.3 1.9v3.7L12 15.8l-3.3-1.9v-3.7L12 8.3Z"/></svg></span>
+            <div>
+                <strong>Inventário</strong>
+                <small>Análise Rotativa</small>
+            </div>
+        </div>
+
+        <div class="eyebrow">Acesso</div>
+        <h1>Entrar</h1>
+
+        <form class="auth-form" action="{{ url_for('login_post') }}" method="post">
+            <input type="hidden" name="next_url" value="{{ next_url }}">
+            <label>
+                <span>Usuário</span>
+                <input name="username" type="text" autocomplete="username" required placeholder="Digite seu usuário">
+            </label>
+            <label>
+                <span>Senha</span>
+                <input name="password" type="password" autocomplete="current-password" required placeholder="Digite sua senha">
+            </label>
+            {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+            <button class="reference-primary-btn" type="submit">Entrar</button>
+        </form>
+
+        <div class="auth-alt">
+            Ainda não tem usuário? <a href="{{ url_for('register') }}">Criar cadastro</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

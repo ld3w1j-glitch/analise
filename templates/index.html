@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Importar Inventário{% endblock %}
+{% block content %}
+<section class="import-reference-wrap">
+    <div class="import-stage-title">1. IMPORTAÇÃO</div>
+
+    <div class="import-reference-card glass-card">
+        <aside class="import-sidebar">
+            <div class="import-brand">
+                <span class="brand-symbol">⬢</span>
+                <div>
+                    <strong>Inventário</strong>
+                    <small>Análise Rotativa</small>
+                </div>
+            </div>
+
+            <nav class="import-nav">
+                <a class="active" href="#">
+                    <i>▣</i>
+                    <span>Importação</span>
+                </a>
+                <a href="#">
+                    <i>▤</i>
+                    <span>Resumo Geral</span>
+                </a>
+                <a href="#">
+                    <i>△</i>
+                    <span>Divergências</span>
+                </a>
+                <a href="#">
+                    <i>⇩</i>
+                    <span>Detalhes & Exportação</span>
+                </a>
+            </nav>
+
+            <div class="import-sidebar-bottom">
+                <a href="#como-funciona"><i>⚙</i><span>Configurações</span></a>
+                {% if store_summary and store_summary.has_data %}
+                <form action="{{ url_for('reset_store') }}" method="post" class="reset-history-form">
+                    <button type="submit">Limpar histórico</button>
+                </form>
+                {% endif %}
+                <div class="admin-card">
+                    <span class="admin-dot"></span>
+                    <div><strong>{{ current_user_display }}</strong><small>online</small></div>
+                    <a class="logout-mini" href="{{ url_for('logout') }}">Sair</a>
+                </div>
+            </div>
+        </aside>
+
+        <main class="import-main">
+            <div class="import-content">
+                <div class="import-headline-row">
+                    <div>
+                        <div class="eyebrow">Python + Flask • {{ current_user_display }}</div>
+                        <h1>Análise de<br>Inventário Rotativo</h1>
+                        <p>
+                            Importe seu arquivo Excel no padrão enviado e receba uma análise visual completa
+                            com divergências, tendências e ranking por linha.
+                        </p>
+                    </div>
+                    <div class="headline-actions"><a class="how-btn" href="#como-funciona">ⓘ Como funciona</a></div>
+                </div>
+
+
+                {% if store_summary and store_summary.has_data %}
+                <div class="saved-history-card">
+                    <div>
+                        <span>Histórico salvo</span>
+                        <strong>{{ store_summary.month_range }}</strong>
+                        <small>{{ store_summary.file_count }} arquivo(s), {{ store_summary.month_count }} mês(es), {{ store_summary.row_count }} linha(s).</small>
+                    </div>
+                    <div class="history-actions">
+                        <a href="{{ url_for('dashboard_accumulated') }}">Abrir histórico</a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="import-feature-row">
+                    <span><i>▦</i>Leitura automática<br><small>das colunas</small></span>
+                    <span><i>↕</i>Separação positiva<br><small>e negativa</small></span>
+                    <span><i>▣</i>Dashboard completo<br><small>em segundos</small></span>
+                </div>
+
+                <form class="import-upload-form" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                    <input id="file" name="file" type="file" accept=".xls,.xlsx,.xlsm" required>
+                    <label for="file" class="reference-drop-zone">
+                        <span class="reference-upload-icon">↥</span>
+                        <strong>Arraste e solte seu arquivo Excel aqui</strong>
+                        <small>ou clique para selecionar</small>
+                        <em id="file-name">Formatos aceitos: .xls, .xlsx ou .xlsm</em>
+                    </label>
+
+                    <div class="accumulate-options">
+                        <label class="accumulate-choice active-choice">
+                            <input type="radio" name="mode" value="accumulate" checked>
+                            <span>Somar ao histórico salvo</span>
+                            <small>Mantém meses anteriores e adiciona os novos.</small>
+                        </label>
+                        <label class="accumulate-choice">
+                            <input type="radio" name="mode" value="single">
+                            <span>Analisar apenas este arquivo</span>
+                            <small>Não altera o histórico acumulado.</small>
+                        </label>
+                        <label class="reset-before-choice">
+                            <input type="checkbox" name="reset_before" value="1">
+                            <span>Limpar histórico antes de importar</span>
+                        </label>
+                    </div>
+
+                    {% if error %}
+                        <div class="error-box">{{ error }}</div>
+                    {% endif %}
+                    <button class="reference-primary-btn" type="submit">Analisar e gerar dashboard</button>
+                    <p class="privacy-note">Os dados ficam salvos localmente no programa para permitir histórico com vários meses.</p>
+                </form>
+            </div>
+        </main>
+    </div>
+</section>
+
+<section class="reference-flow" id="como-funciona">
+    <div class="flow-card glass-card">
+        <div class="eyebrow">Fluxo da experiência</div>
+        <h2>Leitura guiada, limpa e profissional</h2>
+        <div class="flow-grid">
+            <article><b>1</b><strong>Importação</strong><p>Envie o arquivo no padrão Excel.</p></article>
+            <article><b>2</b><strong>Resumo Geral</strong><p>Veja os KPIs principais primeiro.</p></article>
+            <article><b>3</b><strong>Divergências</strong><p>Analise positivos, negativos e ranking.</p></article>
+            <article><b>4</b><strong>Exportação</strong><p>Baixe CSV ou JSON tratado.</p></article>
+        </div>
+    </div>
+</section>
+{% endblock %}

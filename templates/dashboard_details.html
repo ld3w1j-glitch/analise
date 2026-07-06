@@ -1,0 +1,81 @@
+{% extends "dashboard_layout.html" %}
+{% set page_index = '4' %}
+{% set page_label = 'Detalhes & Exportação' %}
+{% set page_title = 'Detalhes & Exportação' %}
+{% set page_description = 'Tabela tratada, classificação de risco e arquivos prontos para exportar.' %}
+{% block page_actions %}
+<span class="interactive-hint">Passe o mouse nos gráficos</span>
+<a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Exportar CSV</a>
+<a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn">Exportar JSON</a>
+{% endblock %}
+{% block dashboard_body %}
+<section class="content-grid details-grid">
+    <article class="panel large-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Tabela analisada</h2>
+                <p>Primeiros registros tratados com classificação de risco.</p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Loja</th>
+                        <th>Linha</th>
+                        <th>Descrição</th>
+                        {% for month in analysis.meta.month_cols %}<th>{{ month }}</th>{% endfor %}
+                        <th>Diferença</th>
+                        <th>Status</th>
+                        <th>Risco</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in analysis.records[:60] %}
+                    <tr class="chart-hover" data-tooltip="{{ item.descricao }} • Diferença {{ item.diferenca_fmt }} • Risco {{ item.risk }}">
+                        <td>{{ item.loja }}</td>
+                        <td>{{ item.linha }}</td>
+                        <td>{{ item.descricao }}</td>
+                        {% for month in analysis.meta.month_cols %}<td class="{{ 'positivo' if item.month_values.get(month, 0) > 0 else 'negativo' if item.month_values.get(month, 0) < 0 else 'zerado' }}">{{ item.month_values_fmt.get(month, 'R$ 0,00') }}</td>{% endfor %}
+                        <td class="{{ item.status }}">{{ item.diferenca_fmt }}</td>
+                        <td><span class="status-pill {{ item.status }}">{{ item.status }}</span></td>
+                        <td>{{ item.risk }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Resumo técnico</h2>
+                <p>Informações de apoio para interpretação do resultado.</p>
+            </div>
+        </div>
+        <div class="note-list">
+            <div class="note-item">Arquivo analisado: {{ analysis.source_file }}</div>
+            {% if analysis.store %}<div class="note-item">Histórico: {{ analysis.store.file_count }} arquivo(s), {{ analysis.store.month_count }} mês(es) — {{ analysis.store.month_range }}</div>{% endif %}
+            <div class="note-item">Total de registros tratados: {{ analysis.kpis.total_rows }}</div>
+            <div class="note-item">Linhas com divergência: {{ analysis.kpis.diverging_count }}</div>
+            <div class="note-item">Linhas zeradas: {{ analysis.kpis.zero_count }}</div>
+            <div class="note-item">Loja identificada: {{ analysis.kpis.loja }}</div>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Exportação</h2>
+                <p>Baixe os dados para compartilhar ou continuar a análise.</p>
+            </div>
+        </div>
+        <div class="action-stack">
+            <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="primary-btn slim">Baixar CSV tratado</a>
+            <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn block">Baixar JSON analítico</a>
+            <a href="{{ url_for('dashboard_summary', report_id=analysis.report_id) }}" class="ghost-btn block">Voltar ao Resumo Geral</a>
+        </div>
+    </article>
+</section>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Inventário{% endblock %}
+{% block content %}
+{% set k = analysis.kpis %}
+<section class="dashboard-shell">
+    <header class="dash-header">
+        <div>
+            <div class="eyebrow">{{ analysis.source_file }}</div>
+            <h1>Inventário Rotativo <span>{{ k.loja }}</span></h1>
+            <p>Resultado visual baseado nas colunas mensais e na coluna DIFERENÇA do arquivo importado.</p>
+        </div>
+        <div class="header-actions">
+            <a href="{{ url_for('index') }}" class="ghost-btn">Nova análise</a>
+            <a href="{{ url_for('download_csv', report_id=analysis.report_id) }}" class="ghost-btn">Baixar CSV</a>
+            <a href="{{ url_for('download_json', report_id=analysis.report_id) }}" class="ghost-btn">Baixar JSON</a>
+        </div>
+    </header>
+
+    <section class="kpi-grid">
+        <article class="kpi-card hero-kpi">
+            <span class="kpi-label">Score de controle</span>
+            <strong>{{ k.balance_score_fmt }}</strong>
+            <small>equilíbrio entre saldo líquido e volume total</small>
+        </article>
+        <article class="kpi-card">
+            <span class="kpi-label">Divergência líquida</span>
+            <strong class="{{ 'pos' if k.net_total >= 0 else 'neg' }}">{{ k.net_total_fmt }}</strong>
+            <small>{{ k.diverging_count }} linhas com divergência</small>
+        </article>
+        <article class="kpi-card">
+            <span class="kpi-label">Total positivo</span>
+            <strong class="pos">{{ k.positive_total_fmt }}</strong>
+            <small>{{ k.positive_count }} linhas positivas</small>
+        </article>
+        <article class="kpi-card">
+            <span class="kpi-label">Total negativo</span>
+            <strong class="neg">{{ k.negative_total_fmt }}</strong>
+            <small>{{ k.negative_count }} linhas negativas</small>
+        </article>
+        <article class="kpi-card">
+            <span class="kpi-label">Acuracidade por linhas</span>
+            <strong>{{ k.accuracy_by_rows_fmt }}</strong>
+            <small>{{ k.zero_count }} de {{ k.total_rows }} linhas zeradas</small>
+        </article>
+    </section>
+
+    <section class="visual-grid">
+        <article class="panel chart-panel large-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Resumo Mensal</h2>
+                    <p>Soma das diferenças por mês detectado na planilha.</p>
+                </div>
+            </div>
+            {% if analysis.monthly_summary %}
+            <div class="bar-chart">
+                {% for item in analysis.monthly_summary %}
+                <div class="bar-item">
+                    <span class="bar-value {{ item.status }}">{{ item.value_fmt }}</span>
+                    <i class="bar {{ item.status }}" style="height: {{ item.height }}%"></i>
+                    <small>{{ item.label }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">Nenhuma coluna mensal foi encontrada. O dashboard usou a coluna DIFERENÇA.</div>
+            {% endif %}
+        </article>
+
+        <article class="panel donut-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Positivo x Negativo</h2>
+                    <p>Participação no volume total divergente.</p>
+                </div>
+            </div>
+            <div class="donut-wrap">
+                <div class="donut" style="--pos: {{ k.positive_pct }};"><span>{{ k.positive_pct }}%</span></div>
+                <div class="legend">
+                    <b><i class="dot pos-dot"></i> Positivo {{ k.positive_pct }}%</b>
+                    <b><i class="dot neg-dot"></i> Negativo {{ k.negative_pct }}%</b>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel trend-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Tendência</h2>
+                    <p>Comportamento visual dos meses importados.</p>
+                </div>
+                <span class="chip {{ 'pos' if k.net_total >= 0 else 'neg' }}">{{ k.net_total_fmt }}</span>
+            </div>
+            <svg class="trend-svg" viewBox="0 0 500 170" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="rgba(143, 255, 202, .42)" />
+                        <stop offset="100%" stop-color="rgba(143, 255, 202, 0)" />
+                    </linearGradient>
+                </defs>
+                <polyline class="trend-shadow" points="{{ analysis.trend.points }}" />
+                <polyline class="trend-line" points="{{ analysis.trend.points }}" />
+            </svg>
+        </article>
+
+        <article class="panel ranking-panel large-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Maiores divergências por linha</h2>
+                    <p>Ranking por impacto absoluto.</p>
+                </div>
+            </div>
+            <div class="ranking-list">
+                {% for item in analysis.top_records %}
+                <div class="rank-row">
+                    <div class="rank-info">
+                        <strong>{{ item.descricao }}</strong>
+                        <small>{{ item.linha }} • {{ item.status|capitalize }}</small>
+                    </div>
+                    <div class="rank-bar-track">
+                        <i class="rank-bar {{ item.status }}" style="width: {{ item.bar_width }}%"></i>
+                    </div>
+                    <span class="rank-value {{ item.status }}">{{ item.diferenca_fmt }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="table-panel panel">
+        <div class="panel-head">
+            <div>
+                <h2>Tabela analisada</h2>
+                <p>Primeiros registros tratados, com classificação de risco.</p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Loja</th>
+                        <th>Linha</th>
+                        <th>Descrição</th>
+                        <th>Diferença</th>
+                        <th>Status</th>
+                        <th>Risco</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in analysis.records[:40] %}
+                    <tr>
+                        <td>{{ item.loja }}</td>
+                        <td>{{ item.linha }}</td>
+                        <td>{{ item.descricao }}</td>
+                        <td class="{{ item.status }}">{{ item.diferenca_fmt }}</td>
+                        <td><span class="status-pill {{ item.status }}">{{ item.status }}</span></td>
+                        <td>{{ item.risk }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}

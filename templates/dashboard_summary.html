@@ -1,0 +1,122 @@
+{% extends "dashboard_layout.html" %}
+{% set page_index = '2' %}
+{% set page_label = 'Resumo Geral' %}
+{% set page_title = 'Resumo Geral' %}
+{% set page_description = 'Visão consolidada do seu inventário rotativo.' %}
+{% block page_actions %}
+<span class="interactive-hint">Passe o mouse nos gráficos</span>
+<span class="period-chip">Período <b>Última análise</b></span>
+<a href="{{ url_for('index') }}" class="ghost-btn">Nova análise</a>
+<a href="{{ url_for('dashboard_divergences', report_id=analysis.report_id) }}" class="primary-inline">Próxima etapa</a>
+{% endblock %}
+{% block dashboard_body %}
+{% set k = analysis.kpis %}
+<section class="reference-kpis">
+    <article class="kpi-card hero-kpi hover-info" data-tooltip="Score de controle: {{ k.balance_score_fmt }}. Quanto maior, mais equilibrado está o inventário.">
+        <span class="kpi-label">Score de controle</span>
+        <strong>{{ k.balance_score_fmt }}</strong>
+        <small>Equilíbrio geral da análise.</small>
+    </article>
+    <article class="kpi-card hover-info" data-tooltip="Divergência líquida: {{ k.net_total_fmt }}. É o saldo entre valores positivos e negativos.">
+        <span class="kpi-label">Divergência líquida</span>
+        <strong class="{{ 'pos' if k.net_total >= 0 else 'neg' }}">{{ k.net_total_fmt }}</strong>
+        <small>{{ k.diverging_count }} linhas com divergência.</small>
+    </article>
+    <article class="kpi-card hover-info" data-tooltip="Total positivo: {{ k.positive_total_fmt }} em {{ k.positive_count }} linhas.">
+        <span class="kpi-label">Total positivo</span>
+        <strong class="pos">{{ k.positive_total_fmt }}</strong>
+        <small>{{ k.positive_count }} linhas positivas.</small>
+    </article>
+    <article class="kpi-card hover-info" data-tooltip="Total negativo: {{ k.negative_total_fmt }} em {{ k.negative_count }} linhas.">
+        <span class="kpi-label">Total negativo</span>
+        <strong class="neg">{{ k.negative_total_fmt }}</strong>
+        <small>{{ k.negative_count }} linhas negativas.</small>
+    </article>
+    <article class="kpi-card hover-info" data-tooltip="Acuracidade: {{ k.accuracy_by_rows_fmt }}. {{ k.zero_count }} linhas sem divergência de {{ k.total_rows }} analisadas.">
+        <span class="kpi-label">Acuracidade por linhas</span>
+        <strong>{{ k.accuracy_by_rows_fmt }}</strong>
+        <small>{{ k.zero_count }} de {{ k.total_rows }} linhas zeradas.</small>
+    </article>
+</section>
+
+<section class="reference-overview-grid">
+    <article class="panel summary-card positive-card hover-info" data-tooltip="Resumo positivo: {{ k.positive_count }} itens somando {{ k.positive_total_fmt }}.">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>Resumo Positivo</h2>
+                <p>{{ k.positive_pct }}% do total divergente</p>
+            </div>
+        </div>
+        <div class="summary-metric positivo">
+            <strong>{{ k.positive_count }}</strong>
+            <span>itens</span>
+        </div>
+        <div class="mini-data-grid">
+            <span>Valor total <b>{{ k.positive_total_fmt }}</b></span>
+            <span>Média por item <b>{{ analysis.top_positive[0].diferenca_fmt if analysis.top_positive else 'R$ 0,00' }}</b></span>
+        </div>
+        <svg class="sparkline" viewBox="0 0 320 70" preserveAspectRatio="none"><path d="M0 45 C28 55 42 18 71 36 S111 55 139 30 171 14 205 38 255 56 320 18"/></svg>
+    </article>
+
+    <article class="panel summary-card negative-card hover-info" data-tooltip="Resumo negativo: {{ k.negative_count }} itens somando {{ k.negative_total_fmt }}.">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>Resumo Negativo</h2>
+                <p>{{ k.negative_pct }}% do total divergente</p>
+            </div>
+        </div>
+        <div class="summary-metric negativo">
+            <strong>{{ k.negative_count }}</strong>
+            <span>itens</span>
+        </div>
+        <div class="mini-data-grid">
+            <span>Valor total <b>{{ k.negative_total_fmt }}</b></span>
+            <span>Média por item <b>{{ analysis.top_negative[0].diferenca_fmt if analysis.top_negative else 'R$ 0,00' }}</b></span>
+        </div>
+        <svg class="sparkline red-line" viewBox="0 0 320 70" preserveAspectRatio="none"><path d="M0 22 C24 45 48 60 74 30 S120 22 142 49 181 61 212 34 264 10 320 42"/></svg>
+    </article>
+
+    <article class="panel distribution-card hover-info" data-tooltip="Distribuição: positivos {{ k.positive_pct }}% e negativos {{ k.negative_pct }}% do volume divergente.">
+        <div class="panel-head compact-head">
+            <div>
+                <h2>Distribuição</h2>
+            </div>
+        </div>
+        <div class="distribution-flex">
+            <div class="donut reference-donut chart-hover" tabindex="0" data-tooltip="Total analisado: {{ k.total_rows }} linhas. Positivo {{ k.positive_pct }}%, negativo {{ k.negative_pct }}%." style="--pos: {{ k.positive_pct }};"><span>{{ k.total_rows }}<small>Total</small></span></div>
+            <div class="legend reference-legend">
+                <b><i class="dot pos-dot"></i>Positivo <em>{{ k.positive_pct }}%</em></b>
+                <b><i class="dot neg-dot"></i>Negativo <em>{{ k.negative_pct }}%</em></b>
+            </div>
+        </div>
+    </article>
+</section>
+
+<section class="panel reference-trend-panel">
+    <div class="panel-head compact-head">
+        <div>
+            <h2>Tendência do Score</h2>
+            <p>Comportamento visual dos períodos importados.</p>
+        </div>
+        <span class="chip {{ 'pos' if k.net_total >= 0 else 'neg' }}">{{ k.balance_score_fmt }}</span>
+    </div>
+    <div class="trend-stage">
+        <svg class="trend-svg reference-trend" viewBox="0 0 500 170" preserveAspectRatio="none">
+            <polyline class="trend-shadow" points="{{ analysis.trend.points }}" />
+            <polyline class="trend-line" points="{{ analysis.trend.points }}" />
+        </svg>
+        <div class="trend-points">
+            {% for point in analysis.trend.point_objects %}
+            <button class="trend-point chart-hover" style="left: {{ point.x_pct }}%; top: {{ point.y_pct }}%;" data-tooltip="{{ point.label }} • {{ point.value_fmt }}" aria-label="{{ point.label }} {{ point.value_fmt }}"></button>
+            {% endfor %}
+        </div>
+        <div class="day-labels">
+            {% if analysis.trend.labels %}
+                {% for label in analysis.trend.labels[:7] %}<span>{{ label }}</span>{% endfor %}
+            {% else %}
+                <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
