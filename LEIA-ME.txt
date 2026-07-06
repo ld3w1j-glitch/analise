@@ -1,0 +1,12 @@
+Arquivos para substituir no projeto:
+
+1. analysis.py
+2. static/js/app.js
+3. static/css/style.css
+4. templates/dashboard_divergences.html
+
+O que foi corrigido:
+- Os botões "Visão Geral", "Por Categoria" e "Por Fornecedor" agora são abas interativas.
+- "Por Categoria" mostra um ranking agrupado pela linha/descrição da planilha.
+- "Por Fornecedor" mostra ranking quando a planilha tiver uma coluna chamada "Fornecedor" ou "Fornec".
+- Se a planilha não tiver fornecedor, a aba mostra um aviso explicando isso.

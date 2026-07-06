@@ -560,3 +560,35 @@ document.addEventListener('keydown', (event) => {
         openDetailPanel(document.activeElement);
     }
 });
+
+// Abas da página de divergências: Visão Geral / Por Categoria / Por Fornecedor.
+function initDivergenceTabs() {
+    const shell = document.querySelector('.divergence-reference-shell');
+    if (!shell) return;
+
+    const buttons = Array.from(shell.querySelectorAll('[data-divergence-tab]'));
+    const panels = Array.from(shell.querySelectorAll('[data-divergence-panel]'));
+    if (!buttons.length || !panels.length) return;
+
+    buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const selectedTab = button.dataset.divergenceTab;
+
+            buttons.forEach((item) => {
+                const isActive = item.dataset.divergenceTab === selectedTab;
+                item.classList.toggle('active', isActive);
+                item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            panels.forEach((panel) => {
+                const isActive = panel.dataset.divergencePanel === selectedTab;
+                panel.hidden = !isActive;
+                panel.classList.toggle('is-active', isActive);
+            });
+
+            if (typeof hideDashboardTooltip === 'function') hideDashboardTooltip();
+        });
+    });
+}
+
+initDivergenceTabs();

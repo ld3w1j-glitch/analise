@@ -194,6 +194,11 @@ def prepare_dataframe(file_path: str | Path) -> Tuple[pd.DataFrame, Dict[str, An
         loja_col = find_column(columns, "LOJA")
         linha_col = find_column(columns, "LINHA")
         desc_col = find_column(columns, "DESCRICAO") or find_column(columns, "DESCR")
+        supplier_col = (
+            find_column(columns, "FORNECEDOR")
+            or find_column(columns, "FORNEC")
+            or find_column(columns, "SUPPLIER")
+        )
         diff_col = find_column(columns, "DIFERENCA") or find_column(columns, "DIVERGENCIA")
         month_cols = [col for col in columns if MONTH_RE.match(str(col))]
 
@@ -203,13 +208,13 @@ def prepare_dataframe(file_path: str | Path) -> Tuple[pd.DataFrame, Dict[str, An
         score += 3 if desc_col else 0
         score += 3 if diff_col else 0
         score += len(month_cols)
-        candidates.append((score, sheet_name, data, header_idx, loja_col, linha_col, desc_col, diff_col, month_cols))
+        candidates.append((score, sheet_name, data, header_idx, loja_col, linha_col, desc_col, supplier_col, diff_col, month_cols))
 
     if not candidates:
         raise RuntimeError("Não encontrei nenhuma tabela válida dentro do Excel.")
 
     candidates.sort(key=lambda x: x[0], reverse=True)
-    score, sheet_name, data, header_idx, loja_col, linha_col, desc_col, diff_col, month_cols = candidates[0]
+    score, sheet_name, data, header_idx, loja_col, linha_col, desc_col, supplier_col, diff_col, month_cols = candidates[0]
 
     if not desc_col:
         raise RuntimeError("Não encontrei a coluna de descrição da linha/produto.")
@@ -229,7 +234,7 @@ def prepare_dataframe(file_path: str | Path) -> Tuple[pd.DataFrame, Dict[str, An
 
     if not month_cols:
         # Use all numeric-looking columns except identifiers as fallback.
-        ignored = {c for c in [loja_col, linha_col, desc_col] if c}
+        ignored = {c for c in [loja_col, linha_col, desc_col, supplier_col] if c}
         possible = [c for c in data.columns if c not in ignored and c != diff_col]
         numeric_scores = []
         for col in possible:
@@ -257,6 +262,7 @@ def prepare_dataframe(file_path: str | Path) -> Tuple[pd.DataFrame, Dict[str, An
         "loja_col": loja_col,
         "linha_col": linha_col,
         "desc_col": desc_col,
+        "supplier_col": supplier_col,
         "diff_col": diff_col,
         "month_cols": month_cols,
         "loja": loja,
@@ -320,12 +326,14 @@ def row_record(row: pd.Series, meta: Dict[str, Any]) -> Dict[str, Any]:
     desc_col = meta.get("desc_col")
     linha_col = meta.get("linha_col")
     loja_col = meta.get("loja_col")
+    supplier_col = meta.get("supplier_col")
     month_cols = meta.get("month_cols", []) or []
     month_values = {str(col): parse_number(row.get(col, 0)) for col in month_cols}
     return {
         "loja": str(row.get(loja_col, "") or "") if loja_col else "",
         "linha": str(row.get(linha_col, "") or "") if linha_col else "",
         "descricao": str(row.get(desc_col, "") or ""),
+        "fornecedor": str(row.get(supplier_col, "") or "") if supplier_col else "",
         "month_values": month_values,
         "month_values_fmt": {month: brl(value, signed=True) for month, value in month_values.items()},
         "diferenca": diff,
@@ -334,6 +342,58 @@ def row_record(row: pd.Series, meta: Dict[str, Any]) -> Dict[str, Any]:
         "status": "positivo" if diff > 0 else "negativo" if diff < 0 else "zerado",
     }
 
+
+
+
+
+def summarize_group_records(
+    records: List[Dict[str, Any]],
+    label_key: str,
+    fallback_label: str,
+    code_key: str | None = None,
+    limit: int = 12,
+) -> List[Dict[str, Any]]:
+    """Group divergence records for interactive category/supplier tabs."""
+    grouped: Dict[str, Dict[str, Any]] = {}
+
+    for rec in records:
+        label = str(rec.get(label_key, "") or "").strip()
+        code = str(rec.get(code_key, "") or "").strip() if code_key else ""
+        if not label and not code:
+            label = fallback_label
+        elif not label:
+            label = code
+
+        group_id = f"{code}|{label}" if code_key else label
+        item = grouped.setdefault(group_id, {
+            "label": label,
+            "code": code,
+            "item_count": 0,
+            "positive_total": 0.0,
+            "negative_total": 0.0,
+            "net_total": 0.0,
+            "abs_total": 0.0,
+        })
+        diff = float(rec.get("diferenca", 0) or 0)
+        item["item_count"] += 1
+        item["net_total"] += diff
+        item["abs_total"] += abs(diff)
+        if diff > 0:
+            item["positive_total"] += diff
+        elif diff < 0:
+            item["negative_total"] += diff
+
+    groups = sorted(grouped.values(), key=lambda item: item["abs_total"], reverse=True)[:limit]
+    max_abs = max([item["abs_total"] for item in groups] + [1])
+    for item in groups:
+        net = item["net_total"]
+        item["status"] = "positivo" if net > 0 else "negativo" if net < 0 else "zerado"
+        item["bar_width"] = round(item["abs_total"] / max_abs * 100, 1)
+        item["positive_total_fmt"] = brl(item["positive_total"])
+        item["negative_total_fmt"] = brl(abs(item["negative_total"]))
+        item["net_total_fmt"] = brl(net, signed=True)
+        item["abs_total_fmt"] = brl(item["abs_total"])
+    return groups
 
 
 def sort_month_label(label: str) -> tuple[int, int, str]:
@@ -441,6 +501,11 @@ def build_analysis_from_prepared_data(data: pd.DataFrame, meta: Dict[str, Any]) 
     for rec in records:
         rec["risk"] = "Alto" if rec["abs_diferenca"] >= risk_threshold and rec["abs_diferenca"] > 0 else "Baixo" if rec["abs_diferenca"] > 0 else "Sem divergência"
 
+    category_groups = summarize_group_records(records, "descricao", "Categoria não identificada", "linha")
+    supplier_groups = []
+    if meta.get("supplier_col") and any(str(rec.get("fornecedor", "")).strip() for rec in records):
+        supplier_groups = summarize_group_records(records, "fornecedor", "Fornecedor não identificado")
+
     positive_line_points = make_trend_point_objects(divergence_line_values, line_labels)
     negative_line_points = make_trend_point_objects(negative_line_values, line_labels)
 
@@ -490,6 +555,8 @@ def build_analysis_from_prepared_data(data: pd.DataFrame, meta: Dict[str, Any]) 
         "top_records": top_records,
         "top_positive": top_positive,
         "top_negative": top_negative,
+        "category_groups": category_groups,
+        "supplier_groups": supplier_groups,
         "records": records,
         "notes": [
             "DIFERENÇA positiva indica sobra/ganho no inventário.",
@@ -516,11 +583,13 @@ def inventory_rows_from_file(file_path: str | Path, source_file: str | None = No
     loja_col = meta.get("loja_col")
     linha_col = meta.get("linha_col")
     desc_col = meta.get("desc_col")
+    supplier_col = meta.get("supplier_col")
     source_name = source_file or Path(file_path).name
     for _, row in data.iterrows():
         loja = str(row.get(loja_col, "") or "") if loja_col else ""
         linha = str(row.get(linha_col, "") or "") if linha_col else ""
         descricao = str(row.get(desc_col, "") or "") if desc_col else ""
+        fornecedor = str(row.get(supplier_col, "") or "") if supplier_col else ""
         if not descricao.strip():
             continue
         months = {str(col): parse_number(row.get(col, 0)) for col in month_cols}
@@ -528,6 +597,7 @@ def inventory_rows_from_file(file_path: str | Path, source_file: str | None = No
             "loja": loja,
             "linha": linha,
             "descricao": descricao,
+            "fornecedor": fornecedor,
             "months": months,
             "source_file": source_name,
         })
@@ -579,12 +649,14 @@ def add_file_to_inventory_store(store: Dict[str, Any], file_path: str | Path, so
             "loja": row.get("loja", ""),
             "linha": row.get("linha", ""),
             "descricao": row.get("descricao", ""),
+            "fornecedor": row.get("fornecedor", ""),
             "months": {},
             "month_sources": {},
         })
         current["loja"] = row.get("loja", current.get("loja", ""))
         current["linha"] = row.get("linha", current.get("linha", ""))
         current["descricao"] = row.get("descricao", current.get("descricao", ""))
+        current["fornecedor"] = row.get("fornecedor", current.get("fornecedor", ""))
         for month, value in row.get("months", {}).items():
             current["months"][str(month)] = float(value or 0)
             current.setdefault("month_sources", {})[str(month)] = source_name
@@ -608,6 +680,7 @@ def store_to_prepared_dataframe(store: Dict[str, Any]) -> Tuple[pd.DataFrame, Di
             "LOJA": row.get("loja", ""),
             "LINHA": row.get("linha", ""),
             "DESCRIÇÃO LINHA": row.get("descricao", ""),
+            "FORNECEDOR": row.get("fornecedor", ""),
         }
         diff = 0.0
         for month in all_months:
@@ -621,6 +694,7 @@ def store_to_prepared_dataframe(store: Dict[str, Any]) -> Tuple[pd.DataFrame, Di
     if df.empty:
         df = pd.DataFrame(columns=["LOJA", "LINHA", "DESCRIÇÃO LINHA", "DIFERENÇA", "__DIFERENCA__"])
     stores = [str(r.get("loja", "")).strip() for r in store.get("rows", {}).values() if str(r.get("loja", "")).strip()]
+    suppliers = [str(r.get("fornecedor", "")).strip() for r in store.get("rows", {}).values() if str(r.get("fornecedor", "")).strip()]
     loja = Counter(stores).most_common(1)[0][0] if stores else "Não identificada"
     meta = {
         "sheet_name": "Histórico acumulado",
@@ -628,6 +702,7 @@ def store_to_prepared_dataframe(store: Dict[str, Any]) -> Tuple[pd.DataFrame, Di
         "loja_col": "LOJA",
         "linha_col": "LINHA",
         "desc_col": "DESCRIÇÃO LINHA",
+        "supplier_col": "FORNECEDOR" if suppliers else None,
         "diff_col": "DIFERENÇA",
         "month_cols": all_months,
         "loja": loja,
