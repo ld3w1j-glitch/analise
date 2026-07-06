@@ -247,19 +247,81 @@ function metricFromPart(part) {
     return { label, value };
 }
 
-function extractNumbersFromText(text) {
-    const matches = String(text || '').match(/[-+]?R?\$?\s*[0-9.]+(?:,[0-9]+)?|[-+]?[0-9]+(?:,[0-9]+)?%?/g) || [];
+function parseBrazilianNumber(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+
+    const multiplier = /[0-9.,]\s*K\b/i.test(text) ? 1000 : /[0-9.,]\s*M\b/i.test(text) ? 1000000 : 1;
+    const cleaned = text
+        .replace(/R\$/gi, '')
+        .replace(/%/g, '')
+        .replace(/\s/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .replace(/[^0-9.\-+]/g, '');
+
+    if (!cleaned || cleaned === '-' || cleaned === '+') return null;
+    const value = Number(cleaned) * multiplier;
+    return Number.isFinite(value) ? value : null;
+}
+
+function extractNumbersFromText(text, options = {}) {
+    const matches = String(text || '').match(/[-+]?R?\$?\s*[0-9.]+(?:,[0-9]+)?\s*[KM]?|[-+]?[0-9]+(?:,[0-9]+)?%?/gi) || [];
     return matches.map((raw) => {
-        const cleaned = raw
-            .replace(/R\$/g, '')
-            .replace(/%/g, '')
-            .replace(/\s/g, '')
-            .replace(/\./g, '')
-            .replace(',', '.')
-            .replace(/[^0-9.\-+]/g, '');
-        const value = Number(cleaned);
-        return Number.isFinite(value) ? Math.abs(value) : 0;
-    }).filter((value) => value > 0);
+        const value = parseBrazilianNumber(raw);
+        if (!Number.isFinite(value)) return 0;
+        return options.absolute ? Math.abs(value) : value;
+    }).filter((value) => Number.isFinite(value) && value !== 0);
+}
+
+function uniqueVisualValues(values) {
+    const seen = new Set();
+    return values.filter((value) => {
+        const key = Math.round(Math.abs(value) * 100) / 100;
+        if (!Number.isFinite(key) || key <= 0 || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function firstValueMatching(text, pattern) {
+    const match = String(text || '').match(pattern);
+    return match ? parseBrazilianNumber(match[0]) : null;
+}
+
+function getPrimaryVisualValue(element) {
+    // Prioridade 1: métricas detalhadas. Em linhas/tabelas, evita pegar números
+    // da descrição ou da posição da linha antes do valor de divergência.
+    const metrics = String(element.dataset.detailMetrics || '')
+        .split('|')
+        .map(metricFromPart)
+        .filter(Boolean);
+    for (const metric of metrics) {
+        if (/R\$|%|valor|saldo|total|índice|indice|score/i.test(`${metric.label} ${metric.value}`)) {
+            const value = parseBrazilianNumber(metric.value);
+            if (Number.isFinite(value)) return value;
+        }
+    }
+
+    const source = [element.dataset.tooltip, element.dataset.detail, element.textContent].filter(Boolean).join(' • ');
+
+    // Prioridade 2: primeiro valor monetário explícito. Corrige o caso do card
+    // "Divergência líquida", que repetia o mesmo R$ no tooltip e no card.
+    const currencyValue = firstValueMatching(source, /[-+]?R\$\s*[0-9.]+(?:,[0-9]+)?/i);
+    if (Number.isFinite(currencyValue)) return currencyValue;
+
+    // Prioridade 3: valor principal visível no componente, quando não há R$.
+    const primaryNode = element.querySelector(':scope > strong, .rank-value, .bar-value, .gauge-center strong, .summary-metric strong');
+    const primaryValue = parseBrazilianNumber(primaryNode?.textContent);
+    if (Number.isFinite(primaryValue)) return primaryValue;
+
+    // Prioridade 4: percentual explícito, útil para score, acuracidade e índice.
+    const percentValue = firstValueMatching(source, /[-+]?[0-9]+(?:,[0-9]+)?%/);
+    if (Number.isFinite(percentValue)) return percentValue;
+
+    // Prioridade 5: primeiro número encontrado no tooltip ou no texto de detalhe.
+    const values = extractNumbersFromText(source);
+    return values.length ? values[0] : null;
 }
 
 function buildDetailVisualData(element) {
@@ -271,7 +333,16 @@ function buildDetailVisualData(element) {
         element.textContent,
     ].filter(Boolean).join(' • ');
 
-    let values = extractNumbersFromText(source).slice(0, 7);
+    const primaryValue = getPrimaryVisualValue(element);
+    let values = uniqueVisualValues(extractNumbersFromText(source, { absolute: true })).slice(0, 7);
+
+    // Quando o item clicado tem um valor principal claro, use somente esse valor
+    // como base do gráfico ampliado. Assim "Divergência líquida" mostra o saldo
+    // líquido real, e não a soma duplicada entre tooltip + card + textos auxiliares.
+    if (Number.isFinite(primaryValue)) {
+        values = [Math.abs(primaryValue)];
+    }
+
     if (!values.length) values = [18, 34, 52, 46, 72, 64, 88];
     if (values.length === 1) {
         const base = values[0];
@@ -283,19 +354,21 @@ function buildDetailVisualData(element) {
     }
 
     const max = Math.max(...values, 1);
-    const total = values.reduce((sum, value) => sum + value, 0);
+    const visualTotal = Number.isFinite(primaryValue) ? primaryValue : values.reduce((sum, value) => sum + value, 0);
     const first = values[0] || 0;
     const last = values[values.length - 1] || 0;
-    const intensity = Math.max(6, Math.min(94, Math.round((last / max) * 100)));
+    const intensity = Math.max(6, Math.min(94, Math.round((Math.abs(visualTotal) / max) * 100)));
     const status = inferStatus(element);
-    return { values, max, total, first, last, intensity, status };
+    return { values, max, total: visualTotal, first, last, intensity, status };
 }
 
 function formatCompactVisualValue(value) {
     if (!Number.isFinite(value)) return '--';
-    if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1).replace('.', ',')}M`;
-    if (value >= 1000) return `R$ ${(value / 1000).toFixed(1).replace('.', ',')}K`;
-    return String(Math.round(value)).replace('.', ',');
+    const sign = value < 0 ? '-' : '';
+    const absValue = Math.abs(value);
+    if (absValue >= 1000000) return `${sign}R$ ${(absValue / 1000000).toFixed(1).replace('.', ',')}M`;
+    if (absValue >= 1000) return `${sign}R$ ${(absValue / 1000).toFixed(1).replace('.', ',')}K`;
+    return `${sign}${String(Math.round(absValue)).replace('.', ',')}`;
 }
 
 function renderDetailVisual(element, panel) {
@@ -320,7 +393,7 @@ function renderDetailVisual(element, panel) {
     bars.innerHTML = values.map((value, index) => {
         const height = Math.max(12, Math.round((value / max) * 100));
         const label = `Barra ${index + 1}: ${formatCompactVisualValue(value)}`;
-        return `<i tabindex="0" role="button" class="detail-visual-bar-point" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Barra ${index + 1} da composição visual. Valor: ${escapeHtml(formatCompactVisualValue(value))}. Clique para ver esta parte isolada no painel de informações." data-detail-metrics="Elemento:Barra ${index + 1}|Valor:${escapeHtml(formatCompactVisualValue(value))}|Participação:${Math.round((value / total) * 100)}%|Contexto:${escapeHtml(inferDetailTitle(element))}" style="--h:${height}%; --delay:${index * 70}ms"></i>`;
+        return `<i tabindex="0" role="button" class="detail-visual-bar-point" data-tooltip="${escapeHtml(label)}" data-detail-title="${escapeHtml(label)}" data-detail="Barra ${index + 1} da composição visual. Valor: ${escapeHtml(formatCompactVisualValue(value))}. Clique para ver esta parte isolada no painel de informações." data-detail-metrics="Elemento:Barra ${index + 1}|Valor:${escapeHtml(formatCompactVisualValue(value))}|Participação:${Math.round((value / Math.max(Math.abs(total), 1)) * 100)}%|Contexto:${escapeHtml(inferDetailTitle(element))}" style="--h:${height}%; --delay:${index * 70}ms"></i>`;
     }).join('');
 
     const width = 220;
