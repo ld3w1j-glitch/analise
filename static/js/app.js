@@ -182,21 +182,6 @@ function ensureDetailPanel() {
             <span class="detail-status">Análise</span>
         </div>
         <p class="detail-body"></p>
-        <div class="detail-visual" aria-label="Animação visual do item selecionado">
-            <div class="detail-visual-head">
-                <span>Análise visual</span>
-                <strong class="detail-visual-total">--</strong>
-            </div>
-            <div class="detail-visual-stage">
-                <div class="detail-visual-bars"></div>
-                <svg class="detail-visual-line" viewBox="0 0 220 82" preserveAspectRatio="none">
-                    <path class="detail-visual-area" d=""></path>
-                    <polyline class="detail-visual-path" points=""></polyline>
-                </svg>
-                <div class="detail-visual-donut"><span>0%</span></div>
-            </div>
-            <div class="detail-visual-caption">Clique em outro ponto para atualizar este gráfico.</div>
-        </div>
         <div class="detail-grid"></div>
         <div class="detail-related">
             <strong>Leitura recomendada</strong>
