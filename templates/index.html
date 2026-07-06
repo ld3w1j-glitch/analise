@@ -34,7 +34,6 @@
             </nav>
 
             <div class="import-sidebar-bottom">
-                <a href="#como-funciona"><i>⚙</i><span>Configurações</span></a>
                 {% if store_summary and store_summary.has_data %}
                 <form action="{{ url_for('reset_store') }}" method="post" class="reset-history-form">
                     <button type="submit">Limpar histórico</button>
@@ -59,7 +58,7 @@
                             com divergências, tendências e ranking por linha.
                         </p>
                     </div>
-                    <div class="headline-actions"><a class="how-btn" href="#como-funciona">ⓘ Como funciona</a></div>
+                    
                 </div>
 
 
@@ -119,16 +118,4 @@
     </div>
 </section>
 
-<section class="reference-flow" id="como-funciona">
-    <div class="flow-card glass-card">
-        <div class="eyebrow">Fluxo da experiência</div>
-        <h2>Leitura guiada, limpa e profissional</h2>
-        <div class="flow-grid">
-            <article><b>1</b><strong>Importação</strong><p>Envie o arquivo no padrão Excel.</p></article>
-            <article><b>2</b><strong>Resumo Geral</strong><p>Veja os KPIs principais primeiro.</p></article>
-            <article><b>3</b><strong>Divergências</strong><p>Analise positivos, negativos e ranking.</p></article>
-            <article><b>4</b><strong>Exportação</strong><p>Baixe CSV ou JSON tratado.</p></article>
-        </div>
-    </div>
-</section>
 {% endblock %}
