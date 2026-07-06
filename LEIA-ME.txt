@@ -1,30 +1,29 @@
-ARQUIVOS PARA SUBSTITUIR
+CORREÇÃO: SALVAR RELATÓRIO DE EQUILÍBRIO / CUSTO DE PRODUÇÃO
 
-Substitua estes arquivos no seu projeto, mantendo as mesmas pastas:
+Substitua estes arquivos no seu projeto mantendo as mesmas pastas:
 
-1) analysis.py
-2) app.py
-3) static/css/style.css
-4) templates/dashboard_layout.html
-5) templates/dashboard_divergences.html
-6) templates/dashboard_details.html
+- analysis.py
+- app.py
+- static/css/style.css
+- static/js/app.js
+- templates/index.html
+- templates/dashboard_layout.html
+- templates/dashboard_divergences.html
+- templates/dashboard_details.html
+- templates/dashboard_production_cost.html
 
-Arquivo novo que deve ser adicionado:
+O que mudou:
 
-7) templates/dashboard_production_cost.html
+1. A opção "Por Fornecedor" foi removida da tela de Divergências.
 
-O QUE FOI AJUSTADO
+2. O Relatório de Equilíbrio agora também pode ficar salvo em histórico, separado do inventário.
+   - Arquivos de Inventário continuam indo para inventario_acumulado.json.
+   - Arquivos de Custo de Produção / Relatório de Equilíbrio vão para custo_producao_acumulado.json.
 
-- Removida a aba "Por Fornecedor" da tela de Divergências.
-- Mantida apenas a navegação "Visão Geral" e "Por Categoria".
-- Adicionado tratamento automático para arquivo no formato "Relatório de Equilíbrio".
-- Quando o Excel tiver a coluna "CustoProdução", o sistema abre uma tela separada de "Custo de Produção".
-- O CustoProdução não é tratado como divergência positiva/negativa; ele vira uma apuração separada por dia e por linha.
-- Exportação CSV ajustada para o novo tipo de relatório.
+3. Na tela de importação, o botão padrão "Somar ao histórico salvo" agora funciona para os dois tipos:
+   - Inventário: acumula por mês.
+   - Custo de Produção: acumula por Data + Empresa + Linha.
 
-COMO TESTAR
+4. Se importar novamente o mesmo período do Relatório de Equilíbrio, o sistema substitui Data + Empresa + Linha em vez de duplicar o valor.
 
-1) Substitua/adicione os arquivos acima.
-2) Reinicie o sistema no Railway ou localmente.
-3) Faça upload do arquivo Relatorio_Equilibrio.
-4) O sistema deve abrir a tela "Custo de Produção" automaticamente.
+Depois de substituir, reinicie o sistema ou faça redeploy no Railway.

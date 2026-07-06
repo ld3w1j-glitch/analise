@@ -69,12 +69,12 @@
         {% if analysis.store %}
         <section class="accumulated-banner glass-card">
             <div>
-                <span>Histórico acumulado</span>
+                <span>{{ 'Histórico acumulado de custo de produção' if report_type == 'production_cost' else 'Histórico acumulado' }}</span>
                 <strong>{{ analysis.store.month_range }}</strong>
-                <small>{{ analysis.store.file_count }} arquivo(s) únicos • {{ analysis.store.import_count }} importação(ões) • {{ analysis.store.month_count }} mês(es)</small>
+                <small>{{ analysis.store.file_count }} arquivo(s) únicos • {{ analysis.store.import_count }} importação(ões) • {{ analysis.store.period_count|default(analysis.store.month_count) }} {{ analysis.store.period_label|default('mês(es)') }}</small>
             </div>
             <div class="accumulated-months">
-                {% for month in analysis.store.months[:12] %}<b>{{ month }}</b>{% endfor %}
+                {% for month in (analysis.store.periods|default(analysis.store.months))[:12] %}<b>{{ month }}</b>{% endfor %}
             </div>
         </section>
         {% endif %}

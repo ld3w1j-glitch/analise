@@ -15,15 +15,21 @@ from werkzeug.utils import secure_filename
 
 from analysis import (
     add_file_to_inventory_store,
+    add_file_to_production_store,
     analyze_inventory,
     analyze_inventory_store,
     analyze_production_cost,
+    analyze_production_cost_store,
     detect_production_cost_report,
+    empty_production_store,
     load_analysis_json,
     load_inventory_store,
+    load_production_store,
     save_analysis_json,
     save_inventory_store,
+    save_production_store,
     summarize_inventory_store,
+    summarize_production_store,
 )
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -114,6 +120,10 @@ def user_store_path(username: str | None = None) -> Path:
     return user_base_dir(username) / "inventario_acumulado.json"
 
 
+def user_production_store_path(username: str | None = None) -> Path:
+    return user_base_dir(username) / "custo_producao_acumulado.json"
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -149,6 +159,18 @@ def create_report_from_store(report_id: str | None = None):
     report_id = report_id or uuid.uuid4().hex[:12]
     analysis = analyze_inventory_store(store)
     analysis["source_file"] = "Histórico acumulado"
+    analysis["report_id"] = report_id
+    save_analysis_json(analysis, report_path(report_id))
+    return report_id, analysis
+
+
+def create_production_report_from_store(report_id: str | None = None):
+    store = load_production_store(user_production_store_path())
+    if not store.get("rows"):
+        return None, None
+    report_id = report_id or uuid.uuid4().hex[:12]
+    analysis = analyze_production_cost_store(store)
+    analysis["source_file"] = "Histórico acumulado de Custo de Produção"
     analysis["report_id"] = report_id
     save_analysis_json(analysis, report_path(report_id))
     return report_id, analysis
@@ -220,6 +242,8 @@ def register_post():
     user_report_dir(username).mkdir(parents=True, exist_ok=True)
     if not user_store_path(username).exists():
         save_inventory_store(empty_store(), user_store_path(username))
+    if not user_production_store_path(username).exists():
+        save_production_store(empty_production_store(), user_production_store_path(username))
 
     session.clear()
     session["username"] = username
@@ -232,11 +256,21 @@ def logout():
     return redirect(url_for("login"))
 
 
+def render_import_page(error: str | None = None):
+    store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
+    production_store_summary = summarize_production_store(load_production_store(user_production_store_path()))
+    return render_template(
+        "index.html",
+        error=error,
+        store_summary=store_summary,
+        production_store_summary=production_store_summary,
+    )
+
+
 @app.get("/")
 @login_required
 def index():
-    store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
-    return render_template("index.html", error=None, store_summary=store_summary)
+    return render_import_page()
 
 
 @app.post("/upload")
@@ -244,12 +278,10 @@ def index():
 def upload_file():
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
-        store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
-        return render_template("index.html", error="Selecione um arquivo Excel para continuar.", store_summary=store_summary), 400
+        return render_import_page("Selecione um arquivo Excel para continuar."), 400
 
     if not allowed_file(uploaded.filename):
-        store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
-        return render_template("index.html", error="Formato inválido. Envie .xls, .xlsx ou .xlsm.", store_summary=store_summary), 400
+        return render_import_page("Formato inválido. Envie .xls, .xlsx ou .xlsm."), 400
 
     original_name = secure_filename(uploaded.filename)
     report_id = uuid.uuid4().hex[:12]
@@ -263,8 +295,17 @@ def upload_file():
         # Relatório de Equilíbrio: trata como apuração de Custo de Produção,
         # separado do histórico de inventário para não misturar estruturas.
         if detect_production_cost_report(saved_path):
-            analysis = analyze_production_cost(saved_path)
-            analysis["source_file"] = original_name
+            if mode == "single":
+                analysis = analyze_production_cost(saved_path)
+                analysis["source_file"] = original_name
+            else:
+                production_store = load_production_store(user_production_store_path())
+                if request.form.get("reset_before") == "1":
+                    production_store = empty_production_store()
+                production_store = add_file_to_production_store(production_store, saved_path, original_name)
+                save_production_store(production_store, user_production_store_path())
+                analysis = analyze_production_cost_store(production_store)
+                analysis["source_file"] = "Histórico acumulado de Custo de Produção"
             analysis["report_id"] = report_id
             save_analysis_json(analysis, report_path(report_id))
             target_endpoint = "dashboard_production_cost"
@@ -285,8 +326,7 @@ def upload_file():
             save_analysis_json(analysis, report_path(report_id))
     except Exception as exc:
         saved_path.unlink(missing_ok=True)
-        store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
-        return render_template("index.html", error=str(exc), store_summary=store_summary), 400
+        return render_import_page(str(exc)), 400
 
     return redirect(url_for(target_endpoint, report_id=report_id))
 
@@ -297,6 +337,13 @@ def reset_store():
     return redirect(url_for("index"))
 
 
+@app.post("/reset-production-store")
+@login_required
+def reset_production_store():
+    save_production_store(empty_production_store(), user_production_store_path())
+    return redirect(url_for("index"))
+
+
 @app.get("/dashboard/acumulado")
 @login_required
 def dashboard_accumulated():
@@ -304,6 +351,15 @@ def dashboard_accumulated():
     if not report_id:
         return redirect(url_for("index"))
     return redirect(url_for("dashboard_summary", report_id=report_id))
+
+
+@app.get("/dashboard/custo-producao/acumulado")
+@login_required
+def dashboard_production_accumulated():
+    report_id, _analysis = create_production_report_from_store()
+    if not report_id:
+        return redirect(url_for("index"))
+    return redirect(url_for("dashboard_production_cost", report_id=report_id))
 
 
 @app.get("/dashboard/<report_id>")
@@ -406,8 +462,7 @@ def download_csv(report_id: str):
 @app.errorhandler(413)
 def too_large(_):
     if current_username():
-        store_summary = summarize_inventory_store(load_inventory_store(user_store_path()))
-        return render_template("index.html", error="Arquivo muito grande. Limite atual: 32 MB.", store_summary=store_summary), 413
+        return render_import_page("Arquivo muito grande. Limite atual: 32 MB."), 413
     return redirect(url_for("login"))
 
 

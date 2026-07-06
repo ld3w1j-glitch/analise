@@ -994,8 +994,8 @@ def _group_production_by(records: List[Dict[str, Any]], key: str, total_cost: fl
     return groups
 
 
-def analyze_production_cost(file_path: str | Path) -> Dict[str, Any]:
-    records_raw, meta = prepare_production_cost_records(file_path)
+def build_production_cost_analysis(records_raw: List[Dict[str, Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the Custo de Produção dashboard from already-normalized records."""
     total_cost = _sum_record_metric(records_raw, "CustoProdução")
     total_admin = _sum_record_metric(records_raw, "CustoAdmin.")
     total_cmv = _sum_record_metric(records_raw, "Total CMV")
@@ -1096,6 +1096,153 @@ def analyze_production_cost(file_path: str | Path) -> Dict[str, Any]:
         ],
     }
     return analysis
+
+
+def analyze_production_cost(file_path: str | Path) -> Dict[str, Any]:
+    records_raw, meta = prepare_production_cost_records(file_path)
+    return build_production_cost_analysis(records_raw, meta)
+
+
+def make_production_row_key(row: Dict[str, Any]) -> str:
+    parts = [row.get("data", ""), row.get("empresa", ""), row.get("linha", "")]
+    return "|".join(normalize_text(part) for part in parts)
+
+
+def empty_production_store() -> Dict[str, Any]:
+    return {"version": 1, "source_files": [], "rows": {}}
+
+
+def load_production_store(path: str | Path) -> Dict[str, Any]:
+    path = Path(path)
+    if not path.exists():
+        return empty_production_store()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return empty_production_store()
+    if not isinstance(data, dict):
+        return empty_production_store()
+    # Migração simples caso alguma versão antiga tenha usado lista em "records".
+    if "rows" not in data and isinstance(data.get("records"), list):
+        rows = {}
+        for rec in data.get("records", []):
+            key = make_production_row_key(rec)
+            if key:
+                rows[key] = rec
+        data["rows"] = rows
+    if "rows" not in data:
+        return empty_production_store()
+    data.setdefault("source_files", [])
+    return data
+
+
+def save_production_store(store: Dict[str, Any], path: str | Path) -> None:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(store, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def add_file_to_production_store(store: Dict[str, Any], file_path: str | Path, source_file: str | None = None) -> Dict[str, Any]:
+    """Add a Relatório de Equilíbrio to the saved production-cost history.
+
+    The key Data + Empresa + Linha is replaced by the newest import. This avoids
+    duplicate counting when the same period is imported again.
+    """
+    records, meta = prepare_production_cost_records(file_path)
+    source_name = source_file or Path(file_path).name
+    store.setdefault("version", 1)
+    store.setdefault("source_files", [])
+    store.setdefault("rows", {})
+
+    imported_dates = sorted({str(rec.get("data", "")) for rec in records if str(rec.get("data", "")).strip()}, key=_sort_full_date_label)
+    total_cost = _sum_record_metric(records, "CustoProdução")
+    for rec in records:
+        key = make_production_row_key(rec)
+        if not key:
+            continue
+        rec = dict(rec)
+        rec["source_file"] = source_name
+        store["rows"][key] = rec
+
+    store["source_files"].append({
+        "filename": source_name,
+        "dates": imported_dates,
+        "rows": len(records),
+        "total_cost": total_cost,
+        "total_cost_fmt": brl(total_cost),
+    })
+    return store
+
+
+def production_store_records(store: Dict[str, Any]) -> List[Dict[str, Any]]:
+    rows = store.get("rows", {})
+    if isinstance(rows, dict):
+        return list(rows.values())
+    if isinstance(rows, list):
+        return rows
+    return []
+
+
+def analyze_production_cost_store(store: Dict[str, Any]) -> Dict[str, Any]:
+    records_raw = production_store_records(store)
+    if not records_raw:
+        raise RuntimeError("Não há histórico de Custo de Produção salvo.")
+
+    metric_cols = sorted({key for rec in records_raw for key in rec.keys() if key not in {"data", "empresa", "linha", "source_file"}})
+    meta = {
+        "sheet_name": "Histórico acumulado de Custo de Produção",
+        "header_row": 1,
+        "date_col": "data",
+        "metric_cols": metric_cols,
+        "linha_col": "linha",
+        "report_title": "Relatório de Equilíbrio acumulado",
+        "is_accumulated": True,
+    }
+    analysis = build_production_cost_analysis(records_raw, meta)
+
+    summary = summarize_production_store(store)
+    analysis["store"] = {
+        "file_count": summary["file_count"],
+        "import_count": summary["import_count"],
+        "source_files": store.get("source_files", []),
+        "unique_filenames": summary["unique_filenames"],
+        "month_count": summary["day_count"],
+        "period_count": summary["day_count"],
+        "period_label": "dia(s)",
+        "month_range": summary["date_range"],
+        "months": summary["dates_short"],
+        "periods": summary["dates_short"],
+    }
+    analysis["notes"].insert(0, "Histórico acumulado de Custo de Produção: arquivos do Relatório de Equilíbrio ficam salvos por dia, empresa e linha.")
+    return analysis
+
+
+def summarize_production_store(store: Dict[str, Any]) -> Dict[str, Any]:
+    records = production_store_records(store)
+    dates = sorted({str(rec.get("data", "")) for rec in records if str(rec.get("data", "")).strip()}, key=_sort_full_date_label)
+    source_files = store.get("source_files", [])
+    unique = []
+    seen = set()
+    for item in source_files:
+        name = item.get("filename", "")
+        if name and name not in seen:
+            seen.add(name)
+            unique.append(name)
+    total_cost = _sum_record_metric(records, "CustoProdução") if records else 0.0
+    return {
+        "has_data": bool(records),
+        "row_count": len(records),
+        "file_count": len(unique),
+        "import_count": len(source_files),
+        "unique_filenames": unique,
+        "day_count": len(dates),
+        "dates": dates,
+        "dates_short": [date[:5] for date in dates],
+        "date_range": f"{dates[0]} até {dates[-1]}" if dates else "Nenhuma data salva",
+        "total_cost": total_cost,
+        "total_cost_fmt": brl(total_cost),
+        "latest_files": list(reversed(source_files[-5:])),
+    }
+
 
 def save_analysis_json(analysis: Dict[str, Any], path: str | Path) -> None:
     Path(path).write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")

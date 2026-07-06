@@ -2648,6 +2648,23 @@ tr.chart-hover:hover td {
 /* =========================================================
    Histórico acumulado de planilhas
    ========================================================= */
+.saved-history-stack {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0 16px;
+}
+.saved-history-stack .saved-history-card {
+    margin: 0;
+}
+.production-history-card {
+    background:
+        radial-gradient(circle at 20% 0%, rgba(126,220,255,.14), transparent 38%),
+        rgba(255,255,255,.035);
+    border-color: rgba(126,220,255,.16);
+}
+.production-history-card strong {
+    color: #8adcf8;
+}
 .saved-history-card {
     display: flex;
     align-items: center;

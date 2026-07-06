@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Importar Inventário{% endblock %}
+{% block title %}Importar Excel{% endblock %}
 {% block content %}
 <section class="import-reference-wrap">
     <div class="import-stage-title">1. IMPORTAÇÃO</div>
@@ -36,7 +36,12 @@
             <div class="import-sidebar-bottom">
                 {% if store_summary and store_summary.has_data %}
                 <form action="{{ url_for('reset_store') }}" method="post" class="reset-history-form">
-                    <button type="submit">Limpar histórico</button>
+                    <button type="submit">Limpar inventário</button>
+                </form>
+                {% endif %}
+                {% if production_store_summary and production_store_summary.has_data %}
+                <form action="{{ url_for('reset_production_store') }}" method="post" class="reset-history-form">
+                    <button type="submit">Limpar custo produção</button>
                 </form>
                 {% endif %}
                 <div class="admin-card">
@@ -52,32 +57,48 @@
                 <div class="import-headline-row">
                     <div>
                         <div class="eyebrow">Python + Flask • {{ current_user_display }}</div>
-                        <h1>Análise de<br>Inventário Rotativo</h1>
+                        <h1>Análise de<br>Inventário e Produção</h1>
                         <p>
-                            Importe seu arquivo Excel no padrão enviado e receba uma análise visual completa
-                            com divergências, tendências e ranking por linha.
+                            Importe arquivo de Inventário Rotativo ou Relatório de Equilíbrio. O sistema identifica
+                            o tipo automaticamente e mantém o histórico separado de cada apuração.
                         </p>
                     </div>
                     
                 </div>
 
 
-                {% if store_summary and store_summary.has_data %}
-                <div class="saved-history-card">
-                    <div>
-                        <span>Histórico salvo</span>
-                        <strong>{{ store_summary.month_range }}</strong>
-                        <small>{{ store_summary.file_count }} arquivo(s), {{ store_summary.month_count }} mês(es), {{ store_summary.row_count }} linha(s).</small>
+                {% if (store_summary and store_summary.has_data) or (production_store_summary and production_store_summary.has_data) %}
+                <div class="saved-history-stack">
+                    {% if store_summary and store_summary.has_data %}
+                    <div class="saved-history-card">
+                        <div>
+                            <span>Histórico de inventário salvo</span>
+                            <strong>{{ store_summary.month_range }}</strong>
+                            <small>{{ store_summary.file_count }} arquivo(s), {{ store_summary.month_count }} mês(es), {{ store_summary.row_count }} linha(s).</small>
+                        </div>
+                        <div class="history-actions">
+                            <a href="{{ url_for('dashboard_accumulated') }}">Abrir inventário</a>
+                        </div>
                     </div>
-                    <div class="history-actions">
-                        <a href="{{ url_for('dashboard_accumulated') }}">Abrir histórico</a>
+                    {% endif %}
+                    {% if production_store_summary and production_store_summary.has_data %}
+                    <div class="saved-history-card production-history-card">
+                        <div>
+                            <span>Histórico de custo de produção salvo</span>
+                            <strong>{{ production_store_summary.date_range }}</strong>
+                            <small>{{ production_store_summary.file_count }} arquivo(s), {{ production_store_summary.day_count }} dia(s), {{ production_store_summary.row_count }} registro(s) • {{ production_store_summary.total_cost_fmt }}.</small>
+                        </div>
+                        <div class="history-actions">
+                            <a href="{{ url_for('dashboard_production_accumulated') }}">Abrir custo</a>
+                        </div>
                     </div>
+                    {% endif %}
                 </div>
                 {% endif %}
 
                 <div class="import-feature-row">
-                    <span><i>▦</i>Leitura automática<br><small>das colunas</small></span>
-                    <span><i>↕</i>Separação positiva<br><small>e negativa</small></span>
+                    <span><i>▦</i>Leitura automática<br><small>do tipo de Excel</small></span>
+                    <span><i>↕</i>Históricos separados<br><small>inventário e produção</small></span>
                     <span><i>▣</i>Dashboard completo<br><small>em segundos</small></span>
                 </div>
 
@@ -94,16 +115,16 @@
                         <label class="accumulate-choice active-choice">
                             <input type="radio" name="mode" value="accumulate" checked>
                             <span>Somar ao histórico salvo</span>
-                            <small>Mantém meses anteriores e adiciona os novos.</small>
+                            <small>Inventário acumula meses. Relatório de Equilíbrio acumula custo por dia/linha.</small>
                         </label>
                         <label class="accumulate-choice">
                             <input type="radio" name="mode" value="single">
                             <span>Analisar apenas este arquivo</span>
-                            <small>Não altera o histórico acumulado.</small>
+                            <small>Gera o dashboard sem alterar o histórico salvo.</small>
                         </label>
                         <label class="reset-before-choice">
                             <input type="checkbox" name="reset_before" value="1">
-                            <span>Limpar histórico antes de importar</span>
+                            <span>Limpar o histórico compatível antes de importar</span>
                         </label>
                     </div>
 
@@ -111,7 +132,7 @@
                         <div class="error-box">{{ error }}</div>
                     {% endif %}
                     <button class="reference-primary-btn" type="submit">Analisar e gerar dashboard</button>
-                    <p class="privacy-note">Os dados ficam salvos localmente no programa para permitir histórico com vários meses.</p>
+                    <p class="privacy-note">Os dados ficam salvos por usuário e separados por tipo: inventário rotativo e custo de produção.</p>
                 </form>
             </div>
         </main>
